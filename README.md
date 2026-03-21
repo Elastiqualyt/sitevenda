@@ -1,4 +1,4 @@
-# Marketplace (tipo Etsy)
+# Marketplace
 
 Plataforma para comprar e vender **artigos digitais**, **artesanato** e **itens usados**.  
 Site em Next.js (web) e app em React Native (iOS/Android), com a mesma API.
@@ -94,7 +94,7 @@ npm run ios
 ## Estrutura do projeto
 
 ```
-etsy/
+.
 ├── ARCHITECTURE.md    # Onde alocar site, DB, storage
 ├── README.md          # Este ficheiro
 ├── web/               # Site + API (Next.js)

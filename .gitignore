@@ -6,6 +6,9 @@ node_modules/
 .env.local
 .env.*.local
 
+# Supabase CLI local state
+supabase/.temp/
+
 # Next
 web/.next/
 web/out/

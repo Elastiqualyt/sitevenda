@@ -1,4 +1,4 @@
-# Arquitetura e Infraestrutura — Marketplace tipo Etsy
+# Arquitetura e Infraestrutura — Marketplace
 
 ## Visão geral
 

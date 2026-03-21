@@ -1,16 +1,12 @@
 import Link from 'next/link';
+import { CATEGORIES } from '@/lib/categories';
+import Header from '@/components/Header';
+import Footer from '@/components/Footer';
 
 export default function HomePage() {
   return (
     <div className="page">
-      <header className="header">
-        <Link href="/" className="logo">Marketplace</Link>
-        <nav className="nav">
-          <Link href="/produtos">Produtos</Link>
-          <Link href="/vender">Vender</Link>
-          <Link href="/entrar">Entrar</Link>
-        </nav>
-      </header>
+      <Header />
 
       <main className="main">
         <section className="hero">
@@ -30,8 +26,8 @@ export default function HomePage() {
         </section>
 
         <section className="categories">
-          <h2>Categorias</h2>
-          <div className="category-grid">
+          <h2>Tipo de anúncio</h2>
+          <div className="category-grid category-grid--small">
             <Link href="/produtos?tipo=digital" className="card">
               <span className="card-icon">📁</span>
               <h3>Digitais</h3>
@@ -49,11 +45,24 @@ export default function HomePage() {
             </Link>
           </div>
         </section>
+
+        <section className="categories">
+          <h2>Categorias</h2>
+          <div className="category-grid category-grid--many">
+            {CATEGORIES.map((c) => (
+              <Link
+                key={c.slug}
+                href={`/produtos?categoria=${encodeURIComponent(c.slug)}`}
+                className="card card--category"
+              >
+                <h3>{c.label}</h3>
+              </Link>
+            ))}
+          </div>
+        </section>
       </main>
 
-      <footer className="footer">
-        <p>© {new Date().getFullYear()} Marketplace. Todos os direitos reservados.</p>
-      </footer>
+      <Footer />
     </div>
   );
 }

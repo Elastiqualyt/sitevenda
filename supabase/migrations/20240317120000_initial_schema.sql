@@ -1,6 +1,4 @@
 -- Tabela de produtos (marketplace)
--- Executar no SQL Editor do Supabase
-
 create table if not exists public.products (
   id uuid primary key default gen_random_uuid(),
   seller_id uuid not null references auth.users(id) on delete cascade,
@@ -15,12 +13,10 @@ create table if not exists public.products (
   updated_at timestamptz default now()
 );
 
--- Índices para listagens e filtros
 create index if not exists idx_products_type on public.products(type);
 create index if not exists idx_products_category on public.products(category);
 create index if not exists idx_products_created_at on public.products(created_at desc);
 
--- RLS: leitura pública, escrita só para o dono
 alter table public.products enable row level security;
 
 create policy "Produtos são visíveis por todos"
@@ -41,8 +37,3 @@ create policy "Utilizador pode apagar os seus produtos"
   on public.products for delete
   to authenticated
   using (auth.uid() = seller_id);
-
--- Storage: buckets para imagens e ficheiros digitais
--- Criar no painel Supabase: Storage > New bucket
--- - "product-images" (público para leitura)
--- - "digital-files" (privado; acesso via signed URL após compra)
