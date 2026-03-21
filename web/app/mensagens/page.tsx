@@ -1,7 +1,7 @@
 'use client';
 
 import { Suspense, useEffect, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
@@ -19,6 +19,7 @@ type ConvRow = {
 };
 
 function MensagensContent() {
+  const router = useRouter();
   const { user, loading: authLoading } = useAuth();
   const searchParams = useSearchParams();
   const openId = searchParams.get('c');
@@ -58,17 +59,46 @@ function MensagensContent() {
       setMessages([]);
       return;
     }
-    supabase.from('messages').select('*').eq('conversation_id', selectedId).order('created_at', { ascending: true }).then((res) => setMessages((res.data as Message[]) ?? []));
-    const ch = supabase.channel('msgs-' + selectedId).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: 'conversation_id=eq.' + selectedId }, (p) => {
-      setMessages((m) => [...m, p.new as Message]);
-    }).subscribe();
-    return () => { supabase.removeChannel(ch); };
+    supabase
+      .from('messages')
+      .select('*')
+      .eq('conversation_id', selectedId)
+      .order('created_at', { ascending: true })
+      .then((res) => setMessages((res.data as Message[]) ?? []));
+    void supabase.rpc('mark_conversation_read', { conversation_id: selectedId }).then(() => {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('marketplace-unread-refresh'));
+      }
+    });
+    const ch = supabase
+      .channel('msgs-' + selectedId)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'messages', filter: 'conversation_id=eq.' + selectedId },
+        (p) => {
+          setMessages((m) => [...m, p.new as Message]);
+          void supabase.rpc('mark_conversation_read', { conversation_id: selectedId }).then(() => {
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new Event('marketplace-unread-refresh'));
+            }
+          });
+        }
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(ch);
+    };
   }, [selectedId]);
 
   const sendMessage = () => {
     if (!selectedId || !newMessage.trim() || !user?.id) return;
     supabase.from('messages').insert({ conversation_id: selectedId, sender_id: user.id, content: newMessage.trim() });
     setNewMessage('');
+    void supabase.rpc('mark_conversation_read', { conversation_id: selectedId }).then(() => {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('marketplace-unread-refresh'));
+      }
+    });
   };
 
   const selected = conversations.find((c) => c.id === selectedId);
@@ -99,7 +129,15 @@ function MensagensContent() {
               <p className="empty">Ainda não tens conversas. Contacta um vendedor a partir da página de um produto.</p>
             ) : (
               conversations.map((c) => (
-                <button key={c.id} type="button" className={'chat-list-item' + (selectedId === c.id ? ' chat-list-item--active' : '')} onClick={() => setSelectedId(c.id)}>
+                <button
+                  key={c.id}
+                  type="button"
+                  className={'chat-list-item' + (selectedId === c.id ? ' chat-list-item--active' : '')}
+                  onClick={() => {
+                    setSelectedId(c.id);
+                    router.push(`/mensagens?c=${encodeURIComponent(c.id)}`);
+                  }}
+                >
                   {c.product?.image_url ? <img src={c.product.image_url} alt="" className="chat-list-item__img" /> : <span className="chat-list-item__placeholder">📦</span>}
                   <div className="chat-list-item__text">
                     <strong>{c.product?.title ?? 'Produto'}</strong>

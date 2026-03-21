@@ -21,14 +21,22 @@ function EntrarForm() {
     e.preventDefault();
     setError('');
     setLoading(true);
-    const { error: err } = await supabase.auth.signInWithPassword({ email, password });
-    setLoading(false);
-    if (err) {
-      setError(err.message === 'Invalid login credentials' ? 'Email ou palavra-passe incorretos.' : err.message);
-      return;
+    try {
+      const { error: err } = await supabase.auth.signInWithPassword({ email, password });
+      if (err) {
+        setError(err.message === 'Invalid login credentials' ? 'Email ou palavra-passe incorretos.' : err.message);
+        return;
+      }
+      router.push(redirectTo);
+      router.refresh();
+    } catch (unknownErr) {
+      console.error('[Entrar] signInWithPassword', unknownErr);
+      setError(
+        'Não foi possível contactar o serviço de sessão. Verifica a ligação, bloqueadores de anúncios ou tenta outro browser.'
+      );
+    } finally {
+      setLoading(false);
     }
-    router.push(redirectTo);
-    router.refresh();
   };
 
   return (

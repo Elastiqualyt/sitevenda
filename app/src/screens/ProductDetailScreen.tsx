@@ -15,6 +15,16 @@ import type { Product } from '../types/product';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ProductDetail'>;
 
+function productTypeLabel(type: string): string {
+  const map: Record<string, string> = {
+    digital: 'Digital',
+    physical: 'Físico',
+    reutilizados: 'Reutilizado',
+    used: 'Reutilizado',
+  };
+  return map[type] ?? type;
+}
+
 export default function ProductDetailScreen({ route }: Props) {
   const { id } = route.params;
   const [product, setProduct] = useState<Product | null>(null);
@@ -52,7 +62,7 @@ export default function ProductDetailScreen({ route }: Props) {
         </View>
       )}
       <View style={styles.info}>
-        <Text style={styles.type}>{product.type}</Text>
+        <Text style={styles.type}>{productTypeLabel(product.type)}</Text>
         <Text style={styles.title}>{product.title}</Text>
         <Text style={styles.price}>{Number(product.price).toFixed(2)} €</Text>
         <Text style={styles.description}>

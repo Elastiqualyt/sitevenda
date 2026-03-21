@@ -12,7 +12,7 @@ export default function HomeScreen({ navigation }: Props) {
     <View style={styles.container}>
       <Text style={styles.title}>Compre e venda com confiança</Text>
       <Text style={styles.subtitle}>
-        Artigos digitais, artesanato e itens usados.
+        Artigos digitais, artesanato e itens reutilizados.
       </Text>
       <TouchableOpacity
         style={styles.button}
@@ -37,10 +37,10 @@ export default function HomeScreen({ navigation }: Props) {
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.categoryCard}
-          onPress={() => navigation.navigate('Products', { type: 'used' })}
+          onPress={() => navigation.navigate('Products', { type: 'reutilizados' })}
         >
           <Text style={styles.categoryIcon}>♻️</Text>
-          <Text style={styles.categoryTitle}>Usados</Text>
+          <Text style={styles.categoryTitle}>Reutilizados</Text>
         </TouchableOpacity>
       </View>
     </View>

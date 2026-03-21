@@ -1,4 +1,4 @@
-export type ProductType = 'digital' | 'physical' | 'used';
+export type ProductType = 'digital' | 'physical' | 'reutilizados';
 
 export interface Product {
   id: string;
@@ -8,8 +8,14 @@ export interface Product {
   price: number;
   type: ProductType;
   image_url: string | null;
+  /** URLs das imagens do anúncio (galeria); a primeira costuma coincidir com image_url. */
+  gallery_urls?: string[] | null;
   file_url?: string | null;
   category: string;
+  /** Slugs das subcategorias (categoria produto-digital). */
+  digital_subcategories?: string[] | null;
+  /** Slugs das subcategorias (categoria entretenimento). */
+  entertainment_subcategories?: string[] | null;
   stock: number;
   created_at: string;
   updated_at: string;

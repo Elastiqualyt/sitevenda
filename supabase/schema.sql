@@ -7,9 +7,12 @@ create table if not exists public.products (
   title text not null,
   description text default '',
   price decimal(10,2) not null check (price >= 0),
-  type text not null check (type in ('digital', 'physical', 'used')),
+  type text not null check (type in ('digital', 'physical', 'reutilizados')),
   category text default 'outros',
+  digital_subcategories text[] not null default '{}',
+  entertainment_subcategories text[] not null default '{}',
   image_url text,
+  gallery_urls jsonb not null default '[]'::jsonb,
   file_url text,
   created_at timestamptz default now(),
   updated_at timestamptz default now()

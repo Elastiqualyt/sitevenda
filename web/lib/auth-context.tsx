@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from './supabase';
-import { isVendedorType, parseUserType } from './user-type';
+import { parseUserType } from './user-type';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 
 export type UserType = 'vendedor' | 'comum';
@@ -39,79 +39,89 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchProfile = async (userId: string, sessionUser?: SupabaseUser) => {
-    const metaType = sessionUser?.user_metadata?.user_type;
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .single();
-
-    const dbType = data?.user_type;
-    const effectiveIsVendedor = isVendedorType(dbType, metaType);
-    const effectiveUserType: UserType = effectiveIsVendedor ? 'vendedor' : 'comum';
-
-    // Corrigir BD se o registo foi como vendedor mas a linha em profiles ficou "comum"
-    if (data && parseUserType(dbType) === 'comum' && parseUserType(metaType) === 'vendedor') {
-      void supabase
+  /**
+   * Nunca lançar exceção — evita auth a ficar em loading eterno.
+   * Importante: não usar await disto dentro de onAuthStateChange (bloqueia o cliente Supabase).
+   */
+  const fetchProfile = async (userId: string, sessionUserArg?: SupabaseUser) => {
+    try {
+      const { data, error } = await supabase
         .from('profiles')
-        .update({ user_type: 'vendedor', updated_at: new Date().toISOString() })
-        .eq('id', userId);
-    }
+        .select('*')
+        .eq('id', userId)
+        .single();
 
-    if (data) {
-      setProfile({ ...(data as Profile), user_type: effectiveUserType });
-      return;
-    }
+      /** Fonte de verdade: `profiles.user_type`. Metadados Auth não sobrepõem a BD. */
+      if (data) {
+        const effectiveUserType: UserType =
+          parseUserType(data.user_type) === 'vendedor' ? 'vendedor' : 'comum';
+        setProfile({ ...(data as Profile), user_type: effectiveUserType });
+        return;
+      }
 
-    // Sem linha em profiles (ex.: utilizador antigo) — ainda assim mostrar tipo a partir dos metadados Auth
-    if (error?.code === 'PGRST116' && sessionUser) {
-      setProfile({
-        id: userId,
-        full_name: (sessionUser.user_metadata?.full_name as string) ?? null,
-        user_type: effectiveUserType,
-        created_at: '',
-        updated_at: '',
-      });
-      return;
-    }
+      if (error?.code === 'PGRST116' && sessionUserArg) {
+        const metaType = sessionUserArg?.user_metadata?.user_type;
+        const effectiveUserType: UserType =
+          parseUserType(metaType) === 'vendedor' ? 'vendedor' : 'comum';
+        setProfile({
+          id: userId,
+          full_name: (sessionUserArg.user_metadata?.full_name as string) ?? null,
+          user_type: effectiveUserType,
+          created_at: '',
+          updated_at: '',
+        });
+        return;
+      }
 
-    setProfile(null);
+      setProfile(null);
+    } catch (e) {
+      console.error('[Auth] fetchProfile falhou', e);
+      setProfile(null);
+    }
   };
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (session?.user) {
-          setSessionUser(session.user);
-          setUser({ id: session.user.id, email: session.user.email ?? undefined });
-          await fetchProfile(session.user.id, session.user);
-        } else {
-          setSessionUser(null);
-          setUser(null);
-          setProfile(null);
-        }
-        setLoading(false);
-      }
-    );
+    let cancelled = false;
 
-    (async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+    const applySession = (session: { user: SupabaseUser } | null) => {
+      if (cancelled) return;
       if (session?.user) {
         setSessionUser(session.user);
         setUser({ id: session.user.id, email: session.user.email ?? undefined });
-        try {
-          await fetchProfile(session.user.id, session.user);
-        } finally {
-          setLoading(false);
-        }
+        setLoading(false);
+        void fetchProfile(session.user.id, session.user);
       } else {
         setSessionUser(null);
+        setUser(null);
+        setProfile(null);
         setLoading(false);
+      }
+    };
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      applySession(session);
+    });
+
+    void (async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (cancelled) return;
+        if (error) {
+          console.error('[Auth] getSession', error);
+          setLoading(false);
+          return;
+        }
+        applySession(session);
+      } catch (e) {
+        console.error('[Auth] getSession exceção', e);
+        if (!cancelled) setLoading(false);
       }
     })();
 
-    return () => subscription.unsubscribe();
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signOut = async () => {

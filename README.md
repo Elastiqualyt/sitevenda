@@ -1,6 +1,6 @@
 # Marketplace
 
-Plataforma para comprar e vender **artigos digitais**, **artesanato** e **itens usados**.  
+Plataforma para comprar e vender **artigos digitais**, **artesanato** e **itens reutilizados**.  
 Site em Next.js (web) e app em React Native (iOS/Android), com a mesma API.
 
 ---

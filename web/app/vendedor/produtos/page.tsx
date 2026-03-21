@@ -4,7 +4,13 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
-import { getCategoryLabel } from '@/lib/categories';
+import {
+  CATEGORY_ENTRETERIMENTO,
+  CATEGORY_PRODUTO_DIGITAL,
+  formatDigitalSubcategoriesList,
+  formatEntertainmentSubcategoriesList,
+  getCategoryLabel,
+} from '@/lib/categories';
 import type { Product } from '@/lib/types';
 
 export default function VendedorProdutosPage() {
@@ -70,7 +76,21 @@ export default function VendedorProdutosPage() {
                   <td>{p.title}</td>
                   <td>{Number(p.price).toFixed(2)} €</td>
                   <td>{p.stock ?? 0}</td>
-                  <td>{getCategoryLabel(p.category)}</td>
+                  <td>
+                    {getCategoryLabel(p.category)}
+                    {p.category === CATEGORY_PRODUTO_DIGITAL && p.digital_subcategories?.length ? (
+                      <span className="vendedor-table__subcats">
+                        {' '}
+                        ({formatDigitalSubcategoriesList(p.digital_subcategories)})
+                      </span>
+                    ) : null}
+                    {p.category === CATEGORY_ENTRETERIMENTO && p.entertainment_subcategories?.length ? (
+                      <span className="vendedor-table__subcats">
+                        {' '}
+                        ({formatEntertainmentSubcategoriesList(p.entertainment_subcategories)})
+                      </span>
+                    ) : null}
+                  </td>
                   <td>
                     <Link href={`/produtos/${p.id}`} className="vendedor-link">Ver</Link>
                     {' · '}

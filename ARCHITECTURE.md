@@ -89,7 +89,7 @@
 
 1. **Digitais** — ficheiros (PDF, PNG, etc.) em Supabase Storage; link de download após pagamento.
 2. **Artesanato / físicos** — imagens no Storage; endereço de envio na encomenda.
-3. **Usados** — igual a físicos; categoria/tag "usado" para filtros.
+3. **Reutilizados** (`reutilizados`) — igual a físicos; tipo para filtros de artigos em segunda mão.
 
 ---
 

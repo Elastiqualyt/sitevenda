@@ -64,7 +64,11 @@ export default function PerfilPage() {
       });
       if (uploadErr) {
         setSaving(false);
-        setMessage('Erro ao enviar foto de perfil: ' + uploadErr.message + '. Garante que o bucket "avatars" existe no Supabase Storage.');
+        const hint =
+          uploadErr.message.includes('row-level security') || uploadErr.message.includes('RLS')
+            ? ' Cria o bucket "avatars" e aplica políticas de INSERT (ver migração supabase ou STORAGE.md).'
+            : ' Garante que o bucket "avatars" existe no Supabase Storage.';
+        setMessage('Erro ao enviar foto de perfil: ' + uploadErr.message + '.' + hint);
         return;
       }
       const { data } = supabase.storage.from(AVATARS_BUCKET).getPublicUrl(path);
@@ -157,6 +161,17 @@ export default function PerfilPage() {
         <h1>O meu perfil</h1>
         <p className="auth-subtitle">Atualiza os teus dados pessoais e preferências de pagamento.</p>
 
+        <div className="auth-card perfil-card perfil-conta-cta">
+          <h2 className="perfil-vendor-cta__title">Área da conta</h2>
+          <p className="perfil-vendor-cta__text">
+            Vê o teu <strong>saldo</strong>, <strong>histórico de compras</strong>, <strong>ficheiros digitais</strong> e{' '}
+            <strong>conversas</strong> na área dedicada.
+          </p>
+          <Link href="/conta" className="btn btn-primary perfil-vendor-cta__btn">
+            Ir para Minha conta
+          </Link>
+        </div>
+
         {isComum && (
           <div className="auth-card perfil-card perfil-vendor-cta">
             <h2 className="perfil-vendor-cta__title">Vender no marketplace</h2>
@@ -248,7 +263,9 @@ export default function PerfilPage() {
             </label>
 
             <div className="auth-radio-group">
-              <span className="auth-label-block">Receber pagamentos (vendas) por:</span>
+              <span className="auth-label-block">
+                Receber pagamentos (vendas) por {profile?.user_type !== 'vendedor' ? '(quando fores vendedor)' : ''}:
+              </span>
               <label className="auth-radio">
                 <input
                   type="radio"

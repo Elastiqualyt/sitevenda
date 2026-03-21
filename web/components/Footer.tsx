@@ -7,7 +7,7 @@ const FOOTER_COLUMNS = [
       { href: '/produtos', label: 'Todos os produtos' },
       { href: '/produtos?tipo=digital', label: 'Digitais' },
       { href: '/produtos?tipo=physical', label: 'Artesanato' },
-      { href: '/produtos?tipo=used', label: 'Usados' },
+      { href: '/produtos?tipo=reutilizados', label: 'Reutilizados' },
     ],
   },
   {

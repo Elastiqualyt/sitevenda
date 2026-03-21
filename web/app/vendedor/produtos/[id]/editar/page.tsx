@@ -5,22 +5,22 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
-import { CATEGORIES, CATEGORY_PRODUTO_DIGITAL } from '@/lib/categories';
+import {
+  CATEGORIES,
+  CATEGORY_ENTRETERIMENTO,
+  CATEGORY_PRODUTO_DIGITAL,
+  DEFAULT_CATEGORY_SLUG,
+  DIGITAL_SUBCATEGORIES,
+  ENTERTAINMENT_SUBCATEGORIES,
+} from '@/lib/categories';
 import type { Product, ProductType } from '@/lib/types';
+import { MAX_AD_PHOTOS, parseGalleryUrls } from '@/lib/product-gallery';
+import { uploadDigitalProductFile, uploadGalleryImages } from '@/lib/product-upload';
 
 const DIGITAL_BUCKET = 'digital-files';
 const PRODUCT_IMAGES_BUCKET = 'product-images';
 const ACCEPT_FILES = '.pdf,.jpg,.jpeg,.png';
 const ACCEPT_IMAGES = '.jpg,.jpeg,.png,.webp';
-
-function getFileExtension(file: File): string {
-  const name = file.name.toLowerCase();
-  if (name.endsWith('.pdf')) return 'pdf';
-  if (name.endsWith('.jpg') || name.endsWith('.jpeg')) return 'jpg';
-  if (name.endsWith('.png')) return 'png';
-  if (name.endsWith('.webp')) return 'webp';
-  return 'bin';
-}
 
 export default function EditarProdutoPage() {
   const params = useParams();
@@ -33,15 +33,32 @@ export default function EditarProdutoPage() {
   const [price, setPrice] = useState('');
   const [type, setType] = useState<ProductType>('physical');
   const [category, setCategory] = useState('');
+  const [digitalSubcategories, setDigitalSubcategories] = useState<string[]>([]);
+  const [entertainmentSubcategories, setEntertainmentSubcategories] = useState<string[]>([]);
   const [stock, setStock] = useState('0');
-  const [imageUrl, setImageUrl] = useState('');
-  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [galleryUrls, setGalleryUrls] = useState<string[]>([]);
+  const [galleryFilesToAdd, setGalleryFilesToAdd] = useState<File[]>([]);
+  const [extraImageUrl, setExtraImageUrl] = useState('');
   const [fileUrl, setFileUrl] = useState<string | null>(null);
   const [digitalFile, setDigitalFile] = useState<File | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState('');
 
   const isProdutoDigital = category === CATEGORY_PRODUTO_DIGITAL;
+  const isEntretenimento = category === CATEGORY_ENTRETERIMENTO;
+
+  const toggleDigitalSubcategory = (slug: string) => {
+    setDigitalSubcategories((prev) =>
+      prev.includes(slug) ? prev.filter((s) => s !== slug) : [...prev, slug]
+    );
+  };
+
+  const toggleEntertainmentSubcategory = (slug: string) => {
+    setEntertainmentSubcategories((prev) =>
+      prev.includes(slug) ? prev.filter((s) => s !== slug) : [...prev, slug]
+    );
+  };
 
   useEffect(() => {
     if (!id) return;
@@ -59,8 +76,17 @@ export default function EditarProdutoPage() {
           setPrice(String(p.price));
           setType(p.type as ProductType);
           setCategory(p.category ?? '');
+          setDigitalSubcategories(
+            Array.isArray(p.digital_subcategories) ? [...p.digital_subcategories] : []
+          );
+          setEntertainmentSubcategories(
+            Array.isArray(p.entertainment_subcategories) ? [...p.entertainment_subcategories] : []
+          );
           setStock(String(p.stock ?? 0));
-          setImageUrl(p.image_url ?? '');
+          const g = parseGalleryUrls(p.gallery_urls);
+          setGalleryUrls(g.length > 0 ? g : p.image_url ? [p.image_url] : []);
+          setExtraImageUrl('');
+          setGalleryFilesToAdd([]);
           setFileUrl(p.file_url ?? null);
         }
       });
@@ -75,61 +101,89 @@ export default function EditarProdutoPage() {
       setError('Preço inválido.');
       return;
     }
-    setLoading(true);
-    let finalImageUrl = imageUrl.trim() || null;
-    if (photoFile) {
-      const ext = getFileExtension(photoFile);
-      const path = `${user.id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-      const { error: uploadErr } = await supabase.storage.from(PRODUCT_IMAGES_BUCKET).upload(path, photoFile, {
-        contentType: photoFile.type,
-        upsert: false,
-      });
-      if (uploadErr) {
-        setLoading(false);
-        setError('Erro ao enviar foto: ' + uploadErr.message);
-        return;
-      }
-      const { data: urlData } = supabase.storage.from(PRODUCT_IMAGES_BUCKET).getPublicUrl(path);
-      finalImageUrl = urlData.publicUrl;
-    }
-    let newFileUrl: string | null = fileUrl;
-    if (isProdutoDigital && digitalFile) {
-      const ext = getFileExtension(digitalFile);
-      const path = `${user.id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-      const { error: uploadErr } = await supabase.storage.from(DIGITAL_BUCKET).upload(path, digitalFile, {
-        contentType: digitalFile.type,
-        upsert: false,
-      });
-      if (uploadErr) {
-        setLoading(false);
-        setError('Erro ao enviar ficheiro: ' + uploadErr.message);
-        return;
-      }
-      const { data: urlData } = supabase.storage.from(DIGITAL_BUCKET).getPublicUrl(path);
-      newFileUrl = urlData.publicUrl;
-    }
-    const { error: err } = await supabase
-      .from('products')
-      .update({
-        title: title.trim(),
-        description: description.trim(),
-        price: priceNum,
-        type: isProdutoDigital ? 'digital' : type,
-        category: category || 'outras-vendas',
-        stock: Math.max(0, parseInt(stock, 10) || 0),
-        image_url: finalImageUrl,
-        file_url: isProdutoDigital ? newFileUrl : null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', id)
-      .eq('seller_id', user.id);
-    setLoading(false);
-    if (err) {
-      setError(err.message);
+    if (isProdutoDigital && digitalSubcategories.length === 0) {
+      setError('Seleciona pelo menos uma subcategoria de Produto Digital.');
       return;
     }
-    router.push('/vendedor/produtos');
-    router.refresh();
+    if (isEntretenimento && entertainmentSubcategories.length === 0) {
+      setError('Seleciona pelo menos uma subcategoria de Entretenimento.');
+      return;
+    }
+    setLoading(true);
+    setUploadStatus('A iniciar…');
+
+    let finalImageUrl: string | null = null;
+    let mergedGallery: string[] = [];
+    let newFileUrl: string | null = fileUrl;
+
+    try {
+      mergedGallery = [...galleryUrls];
+      if (extraImageUrl.trim()) {
+        const u = extraImageUrl.trim();
+        if (!mergedGallery.includes(u)) mergedGallery.push(u);
+      }
+      const room = Math.max(0, MAX_AD_PHOTOS - mergedGallery.length);
+      if (galleryFilesToAdd.length > 0 && room > 0) {
+        const toUpload = galleryFilesToAdd.slice(0, room);
+        setUploadStatus(`A enviar ${toUpload.length} foto(s)…`);
+        const uploaded = await uploadGalleryImages(user.id, toUpload, PRODUCT_IMAGES_BUCKET);
+        mergedGallery = [...mergedGallery, ...uploaded];
+      }
+      mergedGallery = mergedGallery.slice(0, MAX_AD_PHOTOS);
+
+      if (mergedGallery.length === 0) {
+        setError(`Adiciona pelo menos uma foto do anúncio (até ${MAX_AD_PHOTOS} imagens).`);
+        return;
+      }
+      finalImageUrl = mergedGallery[0];
+
+      if (isProdutoDigital) {
+        if (digitalFile) {
+          setUploadStatus('A enviar ficheiro do produto…');
+          newFileUrl = await uploadDigitalProductFile(user.id, digitalFile, DIGITAL_BUCKET);
+        }
+        if (!newFileUrl) {
+          setError('Produto digital: é necessário um ficheiro para download (carrega um ficheiro ou mantém o atual).');
+          return;
+        }
+      }
+
+      setUploadStatus('A guardar…');
+      const { error: err } = await supabase
+        .from('products')
+        .update({
+          title: title.trim(),
+          description: description.trim(),
+          price: priceNum,
+          type: isProdutoDigital ? 'digital' : type,
+          category: category || DEFAULT_CATEGORY_SLUG,
+          digital_subcategories: isProdutoDigital ? digitalSubcategories : [],
+          entertainment_subcategories: isEntretenimento ? entertainmentSubcategories : [],
+          stock: isProdutoDigital ? 0 : Math.max(0, parseInt(stock, 10) || 0),
+          image_url: finalImageUrl,
+          gallery_urls: mergedGallery,
+          file_url: isProdutoDigital ? newFileUrl : null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', id)
+        .eq('seller_id', user.id);
+      if (err) {
+        setError(err.message);
+        return;
+      }
+      router.push('/vendedor/produtos');
+      router.refresh();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setError(
+        msg.includes('Failed to fetch') || msg.includes('NetworkError')
+          ? 'Ligação interrompida. Verifica a internet.'
+          : `Erro: ${msg}`
+      );
+    } finally {
+      setLoading(false);
+      setUploadStatus('');
+    }
   };
 
   if (!product) return <p className="loading">A carregar...</p>;
@@ -174,59 +228,149 @@ export default function EditarProdutoPage() {
             <select className="auth-input" value={type} onChange={(e) => setType(e.target.value as ProductType)}>
               <option value="digital">Digital</option>
               <option value="physical">Físico / Artesanato</option>
-              <option value="used">Usado</option>
+              <option value="reutilizados">Reutilizado</option>
             </select>
           </label>
           <label className="auth-label">
             Categoria
-            <select className="auth-input" value={category} onChange={(e) => setCategory(e.target.value)}>
+            <select
+              className="auth-input"
+              value={category}
+              onChange={(e) => {
+                const v = e.target.value;
+                setCategory(v);
+                if (v !== CATEGORY_PRODUTO_DIGITAL) setDigitalSubcategories([]);
+                if (v !== CATEGORY_ENTRETERIMENTO) setEntertainmentSubcategories([]);
+              }}
+            >
               {CATEGORIES.map((c) => (
                 <option key={c.slug} value={c.slug}>{c.label}</option>
               ))}
             </select>
           </label>
+          {isProdutoDigital && (
+            <label className="auth-label">
+              Subcategorias (Produto Digital) *
+              <span className="digital-subcategories">
+                {DIGITAL_SUBCATEGORIES.map((c) => (
+                  <label key={c.slug} className="digital-subcategories__item">
+                    <input
+                      type="checkbox"
+                      checked={digitalSubcategories.includes(c.slug)}
+                      onChange={() => toggleDigitalSubcategory(c.slug)}
+                    />
+                    <span>{c.label}</span>
+                  </label>
+                ))}
+              </span>
+            </label>
+          )}
+          {isEntretenimento && (
+            <label className="auth-label">
+              Subcategorias (Entretenimento) *
+              <span className="digital-subcategories">
+                {ENTERTAINMENT_SUBCATEGORIES.map((c) => (
+                  <label key={c.slug} className="digital-subcategories__item">
+                    <input
+                      type="checkbox"
+                      checked={entertainmentSubcategories.includes(c.slug)}
+                      onChange={() => toggleEntertainmentSubcategory(c.slug)}
+                    />
+                    <span>{c.label}</span>
+                  </label>
+                ))}
+              </span>
+            </label>
+          )}
+          {!isProdutoDigital && (
+            <label className="auth-label">
+              Stock
+              <input
+                type="number"
+                min={0}
+                className="auth-input"
+                value={stock}
+                onChange={(e) => setStock(e.target.value)}
+              />
+            </label>
+          )}
           <label className="auth-label">
-            Stock
-            <input
-              type="number"
-              min={0}
-              className="auth-input"
-              value={stock}
-              onChange={(e) => setStock(e.target.value)}
-            />
-          </label>
-          <label className="auth-label">
-            Foto do anúncio
-            <input
-              type="url"
-              className="auth-input"
-              value={imageUrl}
-              onChange={(e) => setImageUrl(e.target.value)}
-              placeholder="URL da imagem (https://...)"
-            />
-          </label>
-          <label className="auth-label">
-            Ou carregar nova foto (JPEG, PNG ou WebP)
+            Fotos do anúncio * (até {MAX_AD_PHOTOS})
+            <div className="vendedor-gallery-chips">
+              {galleryUrls.map((url, idx) => (
+                <span key={url + idx} className="vendedor-gallery-chip">
+                  {idx === 0 && <span className="vendedor-gallery-chip__badge">Capa</span>}
+                  <img src={url} alt="" className="vendedor-gallery-chip__img" />
+                  {idx > 0 && (
+                    <button
+                      type="button"
+                      className="vendedor-gallery-chip__cover"
+                      onClick={() =>
+                        setGalleryUrls((prev) => {
+                          if (idx <= 0 || idx >= prev.length) return prev;
+                          const next = [...prev];
+                          const [item] = next.splice(idx, 1);
+                          next.unshift(item);
+                          return next;
+                        })
+                      }
+                      title="Usar como foto de capa"
+                    >
+                      Capa
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="vendedor-gallery-chip__remove"
+                    onClick={() => setGalleryUrls((prev) => prev.filter((_, i) => i !== idx))}
+                    aria-label="Remover imagem"
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+            </div>
             <input
               type="file"
               className="auth-input"
               accept={ACCEPT_IMAGES}
-              onChange={(e) => setPhotoFile(e.target.files?.[0] ?? null)}
+              multiple
+              disabled={galleryUrls.length >= MAX_AD_PHOTOS}
+              onChange={(e) => {
+                const room = Math.max(0, MAX_AD_PHOTOS - galleryUrls.length);
+                setGalleryFilesToAdd(Array.from(e.target.files ?? []).slice(0, room));
+              }}
             />
-            {photoFile && <span className="perfil-hint">{photoFile.name}</span>}
-            {imageUrl && !photoFile && (
-              <span className="perfil-hint">Atual: <a href={imageUrl} target="_blank" rel="noopener noreferrer">Ver imagem</a></span>
-            )}
+            <span className="perfil-hint">
+              A primeira foto é a de capa nas listagens. Máximo {MAX_AD_PHOTOS} fotos no total.
+              {galleryUrls.length >= MAX_AD_PHOTOS
+                ? ' Remove uma foto para adicionar outra.'
+                : galleryFilesToAdd.length > 0
+                  ? ` ${galleryFilesToAdd.length} novo(s) ficheiro(s) serão enviados ao guardar.`
+                  : ''}
+            </span>
+          </label>
+          <label className="auth-label">
+            Adicionar imagem por URL (opcional, se ainda houver espaço)
+            <input
+              type="url"
+              className="auth-input"
+              value={extraImageUrl}
+              onChange={(e) => setExtraImageUrl(e.target.value)}
+              placeholder="https://..."
+              disabled={galleryUrls.length >= MAX_AD_PHOTOS}
+            />
           </label>
           {isProdutoDigital && (
             <label className="auth-label">
-              Anexar produto (PDF ou imagem JPEG/PNG)
+              Ficheiro do produto (download após compra) *
               <input
                 type="file"
                 className="auth-input"
                 accept={ACCEPT_FILES}
                 onChange={(e) => setDigitalFile(e.target.files?.[0] ?? null)}
               />
+              <span className="perfil-hint">Substitui o ficheiro atual se carregares um novo.</span>
               {digitalFile && <span className="perfil-hint">{digitalFile.name}</span>}
               {fileUrl && !digitalFile && (
                 <span className="perfil-hint">Ficheiro atual: <a href={fileUrl} target="_blank" rel="noopener noreferrer">Abrir</a></span>
@@ -234,7 +378,7 @@ export default function EditarProdutoPage() {
             </label>
           )}
           <button type="submit" className="btn btn-primary auth-submit" disabled={loading}>
-            {loading ? 'A guardar...' : 'Guardar'}
+            {loading ? uploadStatus || 'A guardar…' : 'Guardar'}
           </button>
         </form>
       </div>

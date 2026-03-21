@@ -12,7 +12,7 @@ export default function HomePage() {
         <section className="hero">
           <h1>Compre e venda com confiança</h1>
           <p>
-            Artigos digitais, artesanato e itens usados. Um lugar para criar e
+            Artigos digitais, artesanato e itens reutilizados. Um lugar para criar e
             encontrar o que procura.
           </p>
           <div className="hero-actions">
@@ -38,9 +38,9 @@ export default function HomePage() {
               <h3>Artesanato</h3>
               <p>Feito à mão com cuidado</p>
             </Link>
-            <Link href="/produtos?tipo=used" className="card">
+            <Link href="/produtos?tipo=reutilizados" className="card">
               <span className="card-icon">♻️</span>
-              <h3>Usados</h3>
+              <h3>Reutilizados</h3>
               <p>Itens em segunda mão</p>
             </Link>
           </div>
