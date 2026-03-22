@@ -55,13 +55,9 @@ export function formatEntertainmentSubcategoriesList(slugs: string[] | null | un
 
 export const CATEGORIES: CategoryItem[] = [
   { slug: CATEGORY_PRODUTO_DIGITAL, label: 'Produto Digital' },
-  { slug: 'carros-motos-e-barcos', label: 'Carros, motos e barcos' },
-  { slug: 'imoveis', label: 'Imóveis' },
   { slug: 'bebe-e-crianca', label: 'Bebé e Criança' },
   { slug: 'lazer', label: 'Lazer' },
   { slug: 'telemoveis-tablets-smartwatches', label: 'Telemóveis, Tablets e Smartwatches' },
-  { slug: 'agricultura', label: 'Agricultura' },
-  { slug: 'animais', label: 'Animais' },
   { slug: 'desporto', label: 'Desporto' },
   { slug: 'moda', label: 'Moda' },
   { slug: 'moveis-casa-e-jardim', label: 'Móveis, Casa e Jardim' },
@@ -75,7 +71,6 @@ export const CATEGORIES: CategoryItem[] = [
   { slug: 'joalharia', label: 'Joalharia' },
   { slug: 'papelaria-e-festas', label: 'Papelaria e Festas' },
   { slug: 'calcado', label: 'Calçado' },
-  { slug: 'casamentos', label: 'Casamentos' },
 ];
 
 /** Slug padrão quando não há categoria (compatível com schema atual). */
@@ -89,6 +84,11 @@ const LEGACY_CATEGORY_LABELS: Record<string, string> = {
   'brinquedos-e-jogos': 'Brinquedos e Jogos',
   'livros-filmes-e-musica': 'Livros, Filmes e Música',
   'arte-e-colecionaveis': 'Arte e Colecionáveis',
+  'carros-motos-e-barcos': 'Carros, motos e barcos',
+  imoveis: 'Imóveis',
+  agricultura: 'Agricultura',
+  animais: 'Animais',
+  casamentos: 'Casamentos',
 };
 
 export function getCategoryLabel(slug: string): string {

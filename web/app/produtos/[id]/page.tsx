@@ -20,6 +20,7 @@ import { productDisplayImages } from '@/lib/product-gallery';
 import { StarRating } from '@/components/StarRating';
 import { SellerBlock, type SellerPublic } from '@/components/SellerBlock';
 import { ProductReviewsSection, type ProductReviewRow } from '@/components/ProductReviews';
+import { productTypeHasShipping } from '@/lib/product-shipping';
 
 interface Product {
   id: string;
@@ -36,6 +37,8 @@ interface Product {
   entertainment_subcategories?: string[] | null;
   review_avg?: number | null;
   review_count?: number | null;
+  shipping_fee_eur?: number | null;
+  ships_only_same_region?: boolean;
 }
 
 export default function ProductDetailPage() {
@@ -205,6 +208,28 @@ export default function ProductDetailPage() {
               <p className="product-detail-rating product-detail-rating--muted">Ainda sem avaliações neste anúncio</p>
             )}
             <p className="product-price">{Number(product.price).toFixed(2)} €</p>
+            {productTypeHasShipping(product.type) && (
+              <div className="product-shipping-block">
+                {product.shipping_fee_eur != null ? (
+                  <p className="product-shipping-line">
+                    <strong>Portes:</strong>{' '}
+                    {Number(product.shipping_fee_eur) === 0
+                      ? 'Grátis (definido pelo vendedor)'
+                      : `${Number(product.shipping_fee_eur).toFixed(2)} € (somados ao pagamento)`}
+                  </p>
+                ) : (
+                  <p className="product-shipping-line product-shipping-line--muted">
+                    Portes: combina com o vendedor (não incluídos automaticamente no pagamento).
+                  </p>
+                )}
+                {product.ships_only_same_region ? (
+                  <p className="product-region-note">
+                    O vendedor indicou <strong>envio apenas na própria região</strong>. Confirma morada e disponibilidade
+                    em Mensagens antes de comprar.
+                  </p>
+                ) : null}
+              </div>
+            )}
             {metaLoading ? (
               <p className="seller-block-loading">A carregar vendedor…</p>
             ) : (

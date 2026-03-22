@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { CATEGORIES } from '@/lib/categories';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
+import { SITE_NAME } from '@/lib/site-brand';
 
 export default function HomePage() {
   return (
@@ -10,6 +11,7 @@ export default function HomePage() {
 
       <main className="main">
         <section className="hero">
+          <p className="hero__brand">{SITE_NAME}</p>
           <h1>Compre e venda com confiança</h1>
           <p>
             Artigos digitais, artesanato e itens reutilizados. Um lugar para criar e

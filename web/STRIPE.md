@@ -60,3 +60,9 @@ npx supabase db push
 
 - Cartão de teste: `4242 4242 4242 4242`, qualquer data futura, CVC qualquer.
 - Confirma no Dashboard Stripe (pagamentos) e no Supabase (`orders`, `profiles.balance`).
+
+## Política de taxas (vendedores)
+
+- **Listagem:** valor indicativo na UI (`SellerListingPolicy`); cobrança automática da taxa de listagem não está implementada no webhook.
+- **Comissão sobre vendas (6,5 %):** aplicada ao **creditar o vendedor** em `POST /api/stripe/webhook`: para cada linha de `order_items`, o saldo aumenta pelo **líquido** `line_total × (1 − 0,065)`, com `balance_transactions` a registar bruto, comissão e líquido na referência. Constante: `SELLER_TRANSACTION_FEE_PERCENT` em `web/lib/seller-fees.ts` (`sellerLineNetAndCommission`).
+- **Portes:** para produtos físicos/reutilizados, se o vendedor definir `shipping_fee_eur` &gt; 0, o Checkout pode incluir uma **linha extra «Portes»** por artigo; `order_items.line_total` inclui **subtotal do produto + portes** dessa linha. A comissão **6,5 %** incide sobre esse `line_total` (ver `web/lib/product-shipping.ts`). Guia para vendedores: `web/docs/VENDEDOR-PORTES-REGIAO-E-TAXAS.md` e `/vendedor/guia`.

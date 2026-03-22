@@ -31,7 +31,46 @@ Ou, sem instalar globalmente:
 npx next dev
 ```
 
-O site fica em: **http://localhost:3000**
+O site fica em: **http://localhost:3000** (ou **3001** se a 3000 estiver ocupada — vê a linha `Local:` no terminal).
+
+### Página sem estilos (HTML cru) ou erros **500** em `/_next/static/...` (CSS/JS)
+
+No **Windows** isto é frequente: **vários processos `node`**, **cache `.next` inconsistente** ou **antivírus** a bloquear ficheiros na pasta `.next` (problema conhecido no Next.js — ver [discussion #60185](https://github.com/vercel/next.js/discussions/60185)).
+
+**Recomendado (repor tudo e usar Turbopack):**
+
+```powershell
+cd web
+npm run dev:reset
+```
+
+Isto: liberta as portas **3000** e **3001**, apaga `.next` e arranca `next dev --turbo` (menos sensível a estes bloqueios que o Webpack clássico).
+
+Se `dev:reset` não for suficiente:
+
+1. No terminal do `next dev`, abre **exatamente** o URL indicado em `Local:` (`3000` ou `3001`).
+2. Tenta **`npm run dev:turbo`** em vez de `npm run dev` (Turbopack).
+3. Adiciona **exclusão** no antivírus para a pasta do projeto (ou pelo menos `web\.next`).
+4. Faz **Ctrl+Shift+R** no browser.
+
+**Comandos úteis:**
+
+| Comando | O que faz |
+|--------|-----------|
+| `npm run dev` | Desenvolvimento normal (Webpack) |
+| `npm run dev:turbo` | Desenvolvimento com **Turbopack** |
+| `npm run dev:clean` | Apaga `.next` e `next dev` |
+| `npm run dev:reset` | Mata portas 3000/3001, apaga `.next`, `next dev --turbo` |
+
+**Produção local** (para confirmar que o código compila; costuma servir estáticos sem estes erros):
+
+```powershell
+cd web
+npm run build
+npm run start
+```
+
+Depois abre `http://localhost:3000` (para a 3000 estar livre).
 
 ## 4. O que testar
 

@@ -94,10 +94,6 @@ export default function ContaDigitaisPage() {
   return (
     <div className="vendedor-page">
       <h1>Ficheiros digitais comprados</h1>
-      <p className="auth-subtitle">
-        Ligações de descarga dos produtos digitais incluídos em pedidos pagos. Guarda os ficheiros localmente;
-        o link público depende da configuração do Storage no Supabase.
-      </p>
 
       {loading ? (
         <p className="loading">A carregar...</p>

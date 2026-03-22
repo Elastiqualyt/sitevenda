@@ -2,12 +2,13 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
-import { useState, useRef, useEffect, useCallback } from 'react';
-import { CATEGORIES } from '@/lib/categories';
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
+import { Suspense, useState, useRef, useEffect, useCallback } from 'react';
+import { CATEGORIES, getCategoryLabel } from '@/lib/categories';
 import { useAuth } from '@/lib/auth-context';
 import { useMarketplaceLists } from '@/lib/marketplace-lists-context';
 import { supabase } from '@/lib/supabase';
+import { SITE_NAME } from '@/lib/site-brand';
 
 const SECONDARY_LINKS = [
   { href: '/produtos?categoria=lazer', label: 'Presentes', icon: '🎁' },
@@ -19,16 +20,48 @@ const SECONDARY_LINKS = [
   { href: '/produtos', label: 'Cartões oferta' },
 ];
 
+type SuggestProduct = { id: string; title: string; category: string };
+
+function HeaderUrlSync({
+  onSync,
+}: {
+  onSync: (q: string, categoria: string) => void;
+}) {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    if (pathname === '/produtos') {
+      onSync(searchParams.get('q') ?? '', searchParams.get('categoria') ?? '');
+    } else if (pathname === '/') {
+      onSync('', '');
+    }
+  }, [pathname, searchParams, onSync]);
+
+  return null;
+}
+
 export default function Header() {
   const router = useRouter();
   const { user, profile, loading: authLoading, signOut } = useAuth();
   const { favoritesCount, cartQtyTotal } = useMarketplaceLists();
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchCategory, setSearchCategory] = useState('');
+  const [suggestions, setSuggestions] = useState<SuggestProduct[]>([]);
+  const [suggestOpen, setSuggestOpen] = useState(false);
+  const [suggestLoading, setSuggestLoading] = useState(false);
   const [categoriesOpen, setCategoriesOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const categoriesRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
+  const searchWrapRef = useRef<HTMLDivElement>(null);
+  const suggestAbortRef = useRef<AbortController | null>(null);
+
+  const syncFromUrl = useCallback((q: string, categoria: string) => {
+    setSearchQuery(q);
+    setSearchCategory(categoria);
+  }, []);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -51,6 +84,25 @@ export default function Header() {
     }
     return () => document.removeEventListener('click', handleClickOutside);
   }, [categoriesOpen]);
+
+  useEffect(() => {
+    if (!suggestOpen) return;
+    const onDoc = (e: MouseEvent) => {
+      if (searchWrapRef.current && !searchWrapRef.current.contains(e.target as Node)) {
+        setSuggestOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [suggestOpen]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSuggestOpen(false);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
 
   const displayName = profile?.full_name?.trim() || user?.email || 'Conta';
 
@@ -81,28 +133,80 @@ export default function Header() {
     };
   }, [fetchUnreadMessages]);
 
+  useEffect(() => {
+    const q = searchQuery.trim();
+    if (q.length < 2) {
+      setSuggestions([]);
+      setSuggestOpen(false);
+      suggestAbortRef.current?.abort();
+      return;
+    }
+
+    const t = window.setTimeout(() => {
+      suggestAbortRef.current?.abort();
+      const ac = new AbortController();
+      suggestAbortRef.current = ac;
+      setSuggestLoading(true);
+      const params = new URLSearchParams({ q, limit: '10' });
+      if (searchCategory) params.set('categoria', searchCategory);
+      void fetch(`/api/products?${params}`, { signal: ac.signal })
+        .then((r) => r.json())
+        .then((data: unknown) => {
+          if (Array.isArray(data)) {
+            setSuggestions(
+              data.slice(0, 10).map((row: { id: string; title: string; category: string }) => ({
+                id: row.id,
+                title: row.title,
+                category: row.category,
+              }))
+            );
+            setSuggestOpen(true);
+          } else {
+            setSuggestions([]);
+          }
+        })
+        .catch(() => {
+          if (!ac.signal.aborted) setSuggestions([]);
+        })
+        .finally(() => {
+          if (!ac.signal.aborted) setSuggestLoading(false);
+        });
+    }, 320);
+
+    return () => {
+      window.clearTimeout(t);
+      suggestAbortRef.current?.abort();
+    };
+  }, [searchQuery, searchCategory]);
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    if (searchQuery.trim()) {
-      router.push(`/produtos?q=${encodeURIComponent(searchQuery.trim())}`);
-    } else {
-      router.push('/produtos');
-    }
+    const params = new URLSearchParams();
+    const q = searchQuery.trim();
+    if (q) params.set('q', q);
+    if (searchCategory) params.set('categoria', searchCategory);
+    const qs = params.toString();
+    router.push(qs ? `/produtos?${qs}` : '/produtos');
+    setSuggestOpen(false);
   };
 
   return (
     <header className="site-header">
+      <Suspense fallback={null}>
+        <HeaderUrlSync onSync={syncFromUrl} />
+      </Suspense>
       <div className="site-header__row site-header__row--main">
         <div className="site-header__left">
-          <Link href="/" className="site-header__logo">
+          <Link href="/" className="site-header__logo" title={SITE_NAME}>
             <Image
               src="/images/icon-512x512.png"
-              alt="Marketplace"
+              alt={SITE_NAME}
               width={40}
               height={40}
               className="site-header__logo-img"
               priority
             />
+            <span className="site-header__brand-name">{SITE_NAME}</span>
           </Link>
           <div className="site-header__categories-wrap" ref={categoriesRef}>
             <button
@@ -143,22 +247,71 @@ export default function Header() {
           </div>
         </div>
 
-        <form className="site-header__search" onSubmit={handleSearch}>
-          <input
-            type="search"
-            className="site-header__search-input"
-            placeholder="Pesquise qualquer coisa"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            aria-label="Pesquisar"
-          />
-          <button type="submit" className="site-header__search-btn" aria-label="Pesquisar">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="11" cy="11" r="8" />
-              <path d="m21 21-4.35-4.35" />
-            </svg>
-          </button>
-        </form>
+        <div className="site-header__search-wrap" ref={searchWrapRef}>
+          <label className="site-header__search-cat-label" htmlFor="header-search-category">
+            <span className="visually-hidden">Categoria</span>
+            <select
+              id="header-search-category"
+              className="site-header__search-cat"
+              value={searchCategory}
+              onChange={(e) => setSearchCategory(e.target.value)}
+              aria-label="Filtrar pesquisa por categoria"
+            >
+              <option value="">Todas as categorias</option>
+              {CATEGORIES.map((c) => (
+                <option key={c.slug} value={c.slug}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <form className="site-header__search" onSubmit={handleSearch} role="search">
+            <input
+              type="search"
+              className="site-header__search-input"
+              placeholder="Pesquise por nome ou descrição"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onFocus={() => {
+                if (suggestions.length > 0) setSuggestOpen(true);
+              }}
+              autoComplete="off"
+              autoCorrect="off"
+              spellCheck={false}
+              aria-label="Pesquisar produtos"
+              aria-autocomplete="list"
+              aria-expanded={suggestOpen}
+            />
+            <button type="submit" className="site-header__search-btn" aria-label="Pesquisar">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="11" cy="11" r="8" />
+                <path d="m21 21-4.35-4.35" />
+              </svg>
+            </button>
+          </form>
+          {suggestOpen && (suggestLoading || suggestions.length > 0) ? (
+            <ul className="site-header__search-suggest" role="listbox" aria-label="Sugestões">
+              {suggestLoading && suggestions.length === 0 ? (
+                <li className="site-header__search-suggest-item site-header__search-suggest-item--muted">
+                  A procurar…
+                </li>
+              ) : null}
+              {suggestions.map((p) => (
+                <li key={p.id} role="option">
+                  <Link
+                    href={`/produtos/${p.id}`}
+                    className="site-header__search-suggest-link"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => setSuggestOpen(false)}
+                  >
+                    <span className="site-header__search-suggest-title">{p.title}</span>
+                    <span className="site-header__search-suggest-cat">{getCategoryLabel(p.category)}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
 
         <div className="site-header__right" ref={userMenuRef}>
           {!authLoading && (
@@ -196,26 +349,19 @@ export default function Header() {
                       <Link href="/perfil" className="site-header__user-dropdown-link" onClick={() => setUserMenuOpen(false)}>
                         O meu perfil
                       </Link>
-                      <Link href="/favoritos" className="site-header__user-dropdown-link" onClick={() => setUserMenuOpen(false)}>
-                        Favoritos
-                      </Link>
-                      <Link href="/carrinho" className="site-header__user-dropdown-link" onClick={() => setUserMenuOpen(false)}>
-                        Carrinho
-                      </Link>
-                      <Link href="/mensagens" className="site-header__user-dropdown-link" onClick={() => setUserMenuOpen(false)}>
-                        Mensagens
-                      </Link>
                       {profile?.user_type === 'vendedor' && (
-                        <>
-                          <Link href="/vender" className="site-header__user-dropdown-link" onClick={() => setUserMenuOpen(false)}>
-                            Vender
-                          </Link>
-                          <Link href="/vendedor" className="site-header__user-dropdown-link" onClick={() => setUserMenuOpen(false)}>
-                            Área vendedor
-                          </Link>
-                        </>
+                        <Link href="/vendedor" className="site-header__user-dropdown-link" onClick={() => setUserMenuOpen(false)}>
+                          Área vendedor
+                        </Link>
                       )}
-                      <button type="button" className="site-header__user-dropdown-link site-header__user-dropdown-logout" onClick={() => { signOut(); setUserMenuOpen(false); }}>
+                      <button
+                        type="button"
+                        className="site-header__user-dropdown-link site-header__user-dropdown-logout"
+                        onClick={() => {
+                          signOut();
+                          setUserMenuOpen(false);
+                        }}
+                      >
                         Sair
                       </button>
                     </div>

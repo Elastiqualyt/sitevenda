@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { normalizeProductType } from '@/lib/categories';
+import { escapeIlikePattern } from '@/lib/ilike';
 
 /**
  * GET /api/products
@@ -34,6 +35,13 @@ export async function GET(request: NextRequest) {
     const subcategorias = subcategoriasRaw
       ? subcategoriasRaw.split(',').map((s) => s.trim()).filter(Boolean)
       : [];
+    const qRaw = searchParams.get('q');
+    const q = qRaw?.trim() ?? '';
+    const limitRaw = searchParams.get('limit');
+    const limitNum =
+      limitRaw != null && limitRaw !== ''
+        ? Math.min(500, Math.max(1, parseInt(limitRaw, 10) || 0))
+        : null;
 
     let query = supabase
       .from('products')
@@ -52,6 +60,15 @@ export async function GET(request: NextRequest) {
       } else if (categoria === 'entretenimento') {
         query = query.overlaps('entertainment_subcategories', subcategorias);
       }
+    }
+
+    if (q.length > 0) {
+      const pattern = `%${escapeIlikePattern(q)}%`;
+      query = query.or(`title.ilike.${pattern},description.ilike.${pattern}`);
+    }
+
+    if (limitNum != null && limitNum > 0) {
+      query = query.limit(limitNum);
     }
 
     const { data, error } = await query;

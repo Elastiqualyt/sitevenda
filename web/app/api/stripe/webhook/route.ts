@@ -2,13 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { getStripe } from '@/lib/stripe-server';
 import { createServiceClient } from '@/lib/supabase-service';
+import { sellerLineNetAndCommission } from '@/lib/seller-fees';
 
 export const runtime = 'nodejs';
 
 /**
- * Webhook Stripe — confirma pagamento e credita vendedores.
- * Configura em Stripe Dashboard → Webhooks → URL: /api/stripe/webhook
- * Segredo: STRIPE_WEBHOOK_SECRET
+ * Webhook Stripe — confirma pagamento e credita vendedores (valor líquido após comissão da plataforma).
+ * Comissão: `SELLER_TRANSACTION_FEE_PERCENT` em `@/lib/seller-fees` (6,5 % sobre cada linha `line_total`).
+ * Configura em Stripe Dashboard → Webhooks → URL: /api/stripe/webhook · Segredo: STRIPE_WEBHOOK_SECRET
  */
 export async function POST(request: NextRequest) {
   const secret = process.env.STRIPE_WEBHOOK_SECRET;
@@ -109,12 +110,14 @@ export async function POST(request: NextRequest) {
     const productId = row.product_id as string;
     const qty = Number(row.quantity);
 
+    const { net: netCredit, gross: grossLine, commission } = sellerLineNetAndCommission(lineTotal);
+
     const { data: profile } = await admin.from('profiles').select('balance').eq('id', sellerId).maybeSingle();
     const bal = Number(profile?.balance ?? 0);
     await admin
       .from('profiles')
       .update({
-        balance: bal + lineTotal,
+        balance: bal + netCredit,
         updated_at: new Date().toISOString(),
       })
       .eq('id', sellerId);
@@ -122,9 +125,9 @@ export async function POST(request: NextRequest) {
     await admin.from('balance_transactions').insert({
       user_id: sellerId,
       type: 'sale',
-      amount: lineTotal,
+      amount: netCredit,
       status: 'completed',
-      reference: `Pedido ${orderId.slice(0, 8)} — produto ${String(productId).slice(0, 8)}`,
+      reference: `Pedido ${orderId.slice(0, 8)} — produto ${String(productId).slice(0, 8)} — líquido ${netCredit.toFixed(2)} € (bruto ${grossLine.toFixed(2)} €, comissão ${commission.toFixed(2)} € / 6,5 %)`,
     });
 
     const { data: prod } = await admin

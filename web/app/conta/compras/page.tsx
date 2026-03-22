@@ -17,6 +17,8 @@ type OrderRow = {
     unit_price: number;
     line_total: number;
     product_id: string;
+    product_subtotal_eur?: number | null;
+    shipping_fee_eur?: number | null;
   }[];
 };
 
@@ -43,7 +45,9 @@ export default function ContaComprasPage() {
             quantity,
             unit_price,
             line_total,
-            product_id
+            product_id,
+            product_subtotal_eur,
+            shipping_fee_eur
           )
         `
         )
@@ -96,7 +100,11 @@ export default function ContaComprasPage() {
                   <li key={li.id}>
                     <Link href={`/produtos/${li.product_id}`}>{li.title}</Link>
                     <span>
-                      {li.quantity} × {Number(li.unit_price).toFixed(2)} € = {Number(li.line_total).toFixed(2)} €
+                      {li.quantity} × {Number(li.unit_price).toFixed(2)} €
+                      {(li.shipping_fee_eur ?? 0) > 0
+                        ? ` + ${Number(li.shipping_fee_eur).toFixed(2)} € portes`
+                        : ''}{' '}
+                      = {Number(li.line_total).toFixed(2)} €
                     </span>
                   </li>
                 ))}

@@ -1,22 +1,31 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { getCategoryLabel } from '@/lib/categories';
-import type { Conversation, Message } from '@/lib/types';
+import { useConversationMessages } from '@/lib/use-conversation-messages';
+import { useSenderNames } from '@/lib/use-sender-names';
+import { ChatMessageRow } from '@/components/ChatMessageRow';
+import type { Conversation } from '@/lib/types';
 
 type ConversationWithProduct = Conversation & {
   product?: { id: string; title: string; image_url: string | null; category: string };
+  buyerDisplayName?: string;
+  buyerAvatarUrl?: string | null;
 };
 
 export default function VendedorMensagensPage() {
   const { user } = useAuth();
   const [conversations, setConversations] = useState<ConversationWithProduct[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
+  const [sendError, setSendError] = useState('');
+
+  const { messages, loadMessages } = useConversationMessages(selectedId);
+  const senderNames = useSenderNames(messages);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -29,8 +38,14 @@ export default function VendedorMensagensPage() {
           .order('updated_at', { ascending: false });
         const list = (res.data ?? []) as ConversationWithProduct[];
         for (const c of list) {
-          const prod = await supabase.from('products').select('id, title, image_url, category').eq('id', c.product_id).single();
+          const [prod, pubRes] = await Promise.all([
+            supabase.from('products').select('id, title, image_url, category').eq('id', c.product_id).single(),
+            supabase.rpc('get_seller_public', { p_id: c.buyer_id }),
+          ]);
           c.product = prod.data as ConversationWithProduct['product'];
+          const pub = pubRes.data as { full_name?: string | null; avatar_url?: string | null } | null;
+          c.buyerDisplayName = pub?.full_name?.trim() || 'Comprador';
+          c.buyerAvatarUrl = pub?.avatar_url ?? null;
         }
         setConversations(list);
       } finally {
@@ -39,22 +54,22 @@ export default function VendedorMensagensPage() {
     })();
   }, [user?.id]);
 
-  useEffect(() => {
-    if (!selectedId) {
-      setMessages([]);
+  const sendMessage = async () => {
+    if (!selectedId || !newMessage.trim() || !user?.id) return;
+    setSendError('');
+    const { data, error } = await supabase
+      .from('messages')
+      .insert({ conversation_id: selectedId, sender_id: user.id, content: newMessage.trim() })
+      .select()
+      .single();
+    setNewMessage('');
+    if (error) {
+      setSendError(error.message || 'Não foi possível enviar.');
       return;
     }
-    supabase.from('messages').select('*').eq('conversation_id', selectedId).order('created_at', { ascending: true }).then((res) => setMessages((res.data as Message[]) ?? []));
-    const channel = supabase.channel('msg-' + selectedId).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: 'conversation_id=eq.' + selectedId }, (p) => {
-      setMessages((m) => [...m, p.new as Message]);
-    }).subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [selectedId]);
-
-  const sendMessage = () => {
-    if (!selectedId || !newMessage.trim() || !user?.id) return;
-    supabase.from('messages').insert({ conversation_id: selectedId, sender_id: user.id, content: newMessage.trim() });
-    setNewMessage('');
+    if (data) {
+      await loadMessages();
+    }
   };
 
   const selected = conversations.find((c) => c.id === selectedId);
@@ -69,15 +84,52 @@ export default function VendedorMensagensPage() {
           {conversations.length === 0 ? (
             <p className="empty">Ainda não tens conversas.</p>
           ) : (
-            conversations.map((c) => (
-              <button key={c.id} type="button" className={'chat-list-item' + (selectedId === c.id ? ' chat-list-item--active' : '')} onClick={() => setSelectedId(c.id)}>
-                {c.product?.image_url ? <img src={c.product.image_url} alt="" className="chat-list-item__img" /> : <span className="chat-list-item__placeholder">📦</span>}
-                <div className="chat-list-item__text">
-                  <strong>{c.product?.title ?? 'Produto'}</strong>
-                  <span className="chat-list-item__meta">Conversa</span>
+            conversations.map((c) => {
+              const thumb =
+                c.buyerAvatarUrl ||
+                c.product?.image_url ||
+                null;
+              const initial = (c.buyerDisplayName ?? 'C').slice(0, 1).toUpperCase();
+              return (
+                <div
+                  key={c.id}
+                  role="button"
+                  tabIndex={0}
+                  className={'chat-list-item' + (selectedId === c.id ? ' chat-list-item--active' : '')}
+                  onClick={() => setSelectedId(c.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setSelectedId(c.id);
+                    }
+                  }}
+                >
+                  {thumb ? (
+                    <img
+                      src={thumb}
+                      alt=""
+                      className={
+                        'chat-list-item__img' + (c.buyerAvatarUrl ? ' chat-list-item__img--avatar' : '')
+                      }
+                    />
+                  ) : (
+                    <span className="chat-list-item__placeholder chat-list-item__placeholder--letter" aria-hidden>
+                      {initial}
+                    </span>
+                  )}
+                  <div className="chat-list-item__text">
+                    <Link
+                      href={`/perfil/${c.buyer_id}`}
+                      className="chat-list-item__title-link"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {c.buyerDisplayName ?? '…'}
+                    </Link>
+                    <span className="chat-list-item__meta">{c.product?.title ?? 'Produto'}</span>
+                  </div>
                 </div>
-              </button>
-            ))
+              );
+            })
           )}
         </div>
         <div className="chat-panel">
@@ -86,20 +138,45 @@ export default function VendedorMensagensPage() {
           ) : (
             <>
               <div className="chat-panel__header">
-                <h2>{selected.product?.title ?? 'Produto'}</h2>
-                <span>{getCategoryLabel(selected.product?.category ?? '')}</span>
+                <h2>{selected.buyerDisplayName ?? 'Comprador'}</h2>
+                <span className="chat-panel__header-sub">
+                  {selected.product?.title ?? 'Produto'}
+                  {selected.product?.category ? (
+                    <>
+                      {' · '}
+                      {getCategoryLabel(selected.product.category)}
+                    </>
+                  ) : null}
+                </span>
               </div>
               <div className="chat-messages">
                 {messages.map((m) => (
-                  <div key={m.id} className={'chat-message' + (m.sender_id === user?.id ? ' chat-message--own' : '')}>
-                    <p className="chat-message__content">{m.content}</p>
-                    <span className="chat-message__time">{new Date(m.created_at).toLocaleString('pt-PT')}</span>
-                  </div>
+                  <ChatMessageRow
+                    key={m.id}
+                    message={m}
+                    senderName={senderNames[m.sender_id] ?? '…'}
+                    currentUserId={user?.id}
+                  />
                 ))}
               </div>
-              <form className="chat-form" onSubmit={(e) => { e.preventDefault(); sendMessage(); }}>
-                <input type="text" className="auth-input chat-form__input" placeholder="Escreve uma mensagem..." value={newMessage} onChange={(e) => setNewMessage(e.target.value)} />
-                <button type="submit" className="btn btn-primary">Enviar</button>
+              {sendError ? <p className="auth-error chat-send-err">{sendError}</p> : null}
+              <form
+                className="chat-form"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void sendMessage();
+                }}
+              >
+                <input
+                  type="text"
+                  className="auth-input chat-form__input"
+                  placeholder="Escreve uma mensagem..."
+                  value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)}
+                />
+                <button type="submit" className="btn btn-primary">
+                  Enviar
+                </button>
               </form>
             </>
           )}

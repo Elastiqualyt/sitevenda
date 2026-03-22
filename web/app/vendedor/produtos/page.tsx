@@ -48,6 +48,9 @@ export default function VendedorProdutosPage() {
         <h1>Meus produtos</h1>
         <Link href="/vendedor/produtos/novo" className="btn btn-primary">+ Novo produto</Link>
       </div>
+      <p className="vendedor-taxas-hint">
+        Taxas de listagem e comissão na venda: <Link href="/vender">política para vendedores</Link>.
+      </p>
       {products.length === 0 ? (
         <p className="empty">Ainda não tens produtos. <Link href="/vendedor/produtos/novo">Criar o primeiro</Link>.</p>
       ) : (

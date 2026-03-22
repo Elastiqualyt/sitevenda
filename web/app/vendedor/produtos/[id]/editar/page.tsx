@@ -16,6 +16,8 @@ import {
 import type { Product, ProductType } from '@/lib/types';
 import { MAX_AD_PHOTOS, parseGalleryUrls } from '@/lib/product-gallery';
 import { uploadDigitalProductFile, uploadGalleryImages } from '@/lib/product-upload';
+import { SellerListingPolicy, SellerListingPolicyAcceptance } from '@/components/SellerListingPolicy';
+import { roundMoney2 } from '@/lib/product-shipping';
 
 const DIGITAL_BUCKET = 'digital-files';
 const PRODUCT_IMAGES_BUCKET = 'product-images';
@@ -44,6 +46,8 @@ export default function EditarProdutoPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState('');
+  const [shippingFeeInput, setShippingFeeInput] = useState('');
+  const [shipsOnlySameRegion, setShipsOnlySameRegion] = useState(false);
 
   const isProdutoDigital = category === CATEGORY_PRODUTO_DIGITAL;
   const isEntretenimento = category === CATEGORY_ENTRETERIMENTO;
@@ -88,6 +92,10 @@ export default function EditarProdutoPage() {
           setExtraImageUrl('');
           setGalleryFilesToAdd([]);
           setFileUrl(p.file_url ?? null);
+          setShippingFeeInput(
+            p.shipping_fee_eur != null && p.shipping_fee_eur !== undefined ? String(p.shipping_fee_eur) : ''
+          );
+          setShipsOnlySameRegion(!!p.ships_only_same_region);
         }
       });
   }, [id]);
@@ -149,6 +157,18 @@ export default function EditarProdutoPage() {
       }
 
       setUploadStatus('A guardar…');
+      let shippingFeeEur: number | null = null;
+      if (!isProdutoDigital) {
+        const s = shippingFeeInput.trim();
+        if (s !== '') {
+          const sf = parseFloat(s.replace(',', '.'));
+          if (isNaN(sf) || sf < 0) {
+            setError('Portes: indica um valor válido em EUR ou deixa em branco.');
+            return;
+          }
+          shippingFeeEur = roundMoney2(sf);
+        }
+      }
       const { error: err } = await supabase
         .from('products')
         .update({
@@ -163,6 +183,8 @@ export default function EditarProdutoPage() {
           image_url: finalImageUrl,
           gallery_urls: mergedGallery,
           file_url: isProdutoDigital ? newFileUrl : null,
+          shipping_fee_eur: isProdutoDigital ? null : shippingFeeEur,
+          ships_only_same_region: !isProdutoDigital && shipsOnlySameRegion,
           updated_at: new Date().toISOString(),
         })
         .eq('id', id)
@@ -192,6 +214,7 @@ export default function EditarProdutoPage() {
     <div className="vendedor-page">
       <h1><Link href="/vendedor/produtos" className="vendedor-back">←</Link> Editar produto</h1>
       <div className="auth-card" style={{ maxWidth: 560 }}>
+        <SellerListingPolicy />
         <form onSubmit={handleSubmit} className="auth-form">
           {error && <p className="auth-error">{error}</p>}
           <label className="auth-label">
@@ -294,6 +317,36 @@ export default function EditarProdutoPage() {
               />
             </label>
           )}
+          {!isProdutoDigital && (
+            <>
+              <label className="auth-label">
+                Portes (€) — opcional
+                <input
+                  type="text"
+                  className="auth-input"
+                  value={shippingFeeInput}
+                  onChange={(e) => setShippingFeeInput(e.target.value)}
+                  placeholder="Vazio = não somar portes no pagamento; 0 = grátis"
+                />
+                <span className="perfil-hint">
+                  Se preencheres, este valor é somado ao pagamento (uma vez por linha). Comissão 6,5 % sobre preço +
+                  portes.{' '}
+                  <a href="/vendedor/guia" target="_blank" rel="noopener noreferrer">
+                    Guia do vendedor
+                  </a>
+                  .
+                </span>
+              </label>
+              <label className="auth-label auth-label--checkbox">
+                <input
+                  type="checkbox"
+                  checked={shipsOnlySameRegion}
+                  onChange={(e) => setShipsOnlySameRegion(e.target.checked)}
+                />
+                <span>Só envio na minha região (confirmar com o comprador)</span>
+              </label>
+            </>
+          )}
           <label className="auth-label">
             Fotos do anúncio * (até {MAX_AD_PHOTOS})
             <div className="vendedor-gallery-chips">
@@ -377,6 +430,7 @@ export default function EditarProdutoPage() {
               )}
             </label>
           )}
+          <SellerListingPolicyAcceptance inputId="seller-policy-accept-editar" />
           <button type="submit" className="btn btn-primary auth-submit" disabled={loading}>
             {loading ? uploadStatus || 'A guardar…' : 'Guardar'}
           </button>

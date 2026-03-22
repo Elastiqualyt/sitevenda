@@ -157,162 +157,199 @@ export default function PerfilPage() {
   return (
     <div className="page">
       <Header />
-      <main className="main">
-        <h1>O meu perfil</h1>
-        <p className="auth-subtitle">Atualiza os teus dados pessoais e preferências de pagamento.</p>
-
-        <div className="auth-card perfil-card perfil-conta-cta">
-          <h2 className="perfil-vendor-cta__title">Área da conta</h2>
-          <p className="perfil-vendor-cta__text">
-            Vê o teu <strong>saldo</strong>, <strong>histórico de compras</strong>, <strong>ficheiros digitais</strong> e{' '}
-            <strong>conversas</strong> na área dedicada.
+      <main className="main perfil-page">
+        <header className="perfil-page__header">
+          <h1 className="perfil-page__title">O meu perfil</h1>
+          <p className="auth-subtitle perfil-page__subtitle">
+            Atualiza os teus dados pessoais e preferências de pagamento.
           </p>
-          <Link href="/conta" className="btn btn-primary perfil-vendor-cta__btn">
-            Ir para Minha conta
-          </Link>
-        </div>
+        </header>
 
-        {isComum && (
-          <div className="auth-card perfil-card perfil-vendor-cta">
-            <h2 className="perfil-vendor-cta__title">Vender no marketplace</h2>
-            <p className="perfil-vendor-cta__text">
-              Registaste-te como utilizador comum. Podes ativar a qualquer momento uma <strong>conta de vendedor</strong> para
-              publicar produtos, gerir stock e falar com compradores.
-            </p>
-            {vendorMessage && <p className="auth-error">{vendorMessage}</p>}
-            <button
-              type="button"
-              className="btn btn-primary perfil-vendor-cta__btn"
-              disabled={vendorActivating}
-              onClick={handleActivateVendor}
-            >
-              {vendorActivating ? 'A ativar...' : 'Ativar conta de vendedor'}
-            </button>
+        <section className="perfil-actions" aria-label="Atalhos da conta">
+          <div className={`perfil-actions__grid${isComum ? ' perfil-actions__grid--two' : ''}`}>
+            <div className="auth-card perfil-card perfil-conta-cta">
+              <h2 className="perfil-vendor-cta__title">Área da conta</h2>
+              <p className="perfil-vendor-cta__text">
+                Vê o teu <strong>saldo</strong>, <strong>histórico de compras</strong>,{' '}
+                <strong>ficheiros digitais</strong> e <strong>conversas</strong> na área dedicada.
+              </p>
+              <Link href="/conta" className="btn btn-primary perfil-vendor-cta__btn">
+                Ir para Minha conta
+              </Link>
+            </div>
+
+            {isComum && (
+              <div className="auth-card perfil-card perfil-vendor-cta">
+                <h2 className="perfil-vendor-cta__title">Vender no TerraPlace</h2>
+                <p className="perfil-vendor-cta__text">
+                  Registaste-te como utilizador comum. Podes ativar a qualquer momento uma{' '}
+                  <strong>conta de vendedor</strong> para publicar produtos, gerir stock e falar com compradores.
+                </p>
+                <p className="perfil-vendor-cta__text perfil-vendor-cta__text--muted">
+                  Ao venderes, aplicam-se taxas de listagem e comissão sobre a venda — vê o detalhe na{' '}
+                  <Link href="/vender">política para vendedores</Link>.
+                </p>
+                {vendorMessage && <p className="auth-error">{vendorMessage}</p>}
+                <button
+                  type="button"
+                  className="btn btn-primary perfil-vendor-cta__btn"
+                  disabled={vendorActivating}
+                  onClick={handleActivateVendor}
+                >
+                  {vendorActivating ? 'A ativar...' : 'Ativar conta de vendedor'}
+                </button>
+              </div>
+            )}
           </div>
-        )}
+        </section>
 
-        <div className="auth-card perfil-card">
-          <form onSubmit={handleSubmit} className="auth-form">
-            {message && <p className={message.startsWith('Erro') ? 'auth-error' : 'auth-success'}>{message}</p>}
-
-            <div className="perfil-avatar-section">
-              {avatarUrl ? (
-                <img src={avatarUrl} alt="Foto de perfil" className="perfil-avatar-img" />
-              ) : (
-                <div className="perfil-avatar-placeholder">Sem foto</div>
+        <section className="perfil-dados" aria-labelledby="perfil-dados-title">
+          <h2 id="perfil-dados-title" className="perfil-section-title">
+            Dados do perfil
+          </h2>
+          <div className="auth-card perfil-card perfil-card--form">
+            <form onSubmit={handleSubmit} className="auth-form perfil-form">
+              {message && (
+                <p className={message.startsWith('Erro') ? 'auth-error' : 'auth-success'}>{message}</p>
               )}
-              <label className="auth-label" style={{ marginTop: '0.5rem' }}>
-                Foto de perfil
-                <input
-                  type="file"
-                  className="auth-input"
-                  accept={ACCEPT_AVATAR_IMAGES}
-                  onChange={(e) => setAvatarFile(e.target.files?.[0] ?? null)}
-                />
-                {avatarFile && <span className="perfil-hint">{avatarFile.name}</span>}
-                {!avatarFile && avatarUrl && (
-                  <span className="perfil-hint">Foto atual. Carrega um ficheiro para atualizar.</span>
-                )}
-              </label>
-            </div>
 
-            <label className="auth-label">
-              Nome completo
-              <input
-                type="text"
-                className="auth-input"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                placeholder="O teu nome"
-              />
-            </label>
+              <div className="perfil-form__columns">
+                <div className="perfil-form__col">
+                  <h3 className="perfil-form__heading">Identidade e contacto</h3>
+                  <div className="perfil-avatar-section">
+                    {avatarUrl ? (
+                      <img src={avatarUrl} alt="Foto de perfil" className="perfil-avatar-img" />
+                    ) : (
+                      <div className="perfil-avatar-placeholder">Sem foto</div>
+                    )}
+                    <label className="auth-label perfil-avatar-section__file">
+                      Foto de perfil
+                      <input
+                        type="file"
+                        className="auth-input"
+                        accept={ACCEPT_AVATAR_IMAGES}
+                        onChange={(e) => setAvatarFile(e.target.files?.[0] ?? null)}
+                      />
+                      {avatarFile && <span className="perfil-hint">{avatarFile.name}</span>}
+                      {!avatarFile && avatarUrl && (
+                        <span className="perfil-hint">Foto atual. Carrega um ficheiro para atualizar.</span>
+                      )}
+                    </label>
+                  </div>
 
-            <label className="auth-label">
-              Email
-              <input
-                type="email"
-                className="auth-input auth-input--readonly"
-                value={user.email ?? ''}
-                readOnly
-                disabled
-                title="O email altera-se na área de conta do utilizador."
-              />
-              <span className="perfil-hint">O email não pode ser alterado aqui.</span>
-            </label>
+                  <label className="auth-label">
+                    Nome completo
+                    <input
+                      type="text"
+                      className="auth-input"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      placeholder="O teu nome"
+                    />
+                  </label>
 
-            <label className="auth-label">
-              Telemóvel
-              <input
-                type="tel"
-                className="auth-input"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="+351 912 345 678"
-              />
-            </label>
+                  <label className="auth-label">
+                    Email
+                    <input
+                      type="email"
+                      className="auth-input auth-input--readonly"
+                      value={user.email ?? ''}
+                      readOnly
+                      disabled
+                      title="O email altera-se na área de conta do utilizador."
+                    />
+                    <span className="perfil-hint">O email não pode ser alterado aqui.</span>
+                  </label>
 
-            <label className="auth-label">
-              Morada
-              <textarea
-                className="auth-input"
-                rows={2}
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                placeholder="Rua, número, código postal, localidade"
-              />
-            </label>
+                  <label className="auth-label">
+                    Telemóvel
+                    <input
+                      type="tel"
+                      className="auth-input"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="+351 912 345 678"
+                    />
+                  </label>
+                </div>
 
-            <div className="auth-radio-group">
-              <span className="auth-label-block">
-                Receber pagamentos (vendas) por {profile?.user_type !== 'vendedor' ? '(quando fores vendedor)' : ''}:
-              </span>
-              <label className="auth-radio">
-                <input
-                  type="radio"
-                  name="paymentPreference"
-                  value="transferencia"
-                  checked={paymentPreference === 'transferencia'}
-                  onChange={() => setPaymentPreference('transferencia')}
-                />
-                <span>Transferência bancária (IBAN)</span>
-              </label>
-              <label className="auth-radio">
-                <input
-                  type="radio"
-                  name="paymentPreference"
-                  value="mbway"
-                  checked={paymentPreference === 'mbway'}
-                  onChange={() => setPaymentPreference('mbway')}
-                />
-                <span>MB Way</span>
-              </label>
-            </div>
+                <div className="perfil-form__col">
+                  <h3 className="perfil-form__heading">Morada e pagamentos (vendas)</h3>
+                  <label className="auth-label">
+                    Morada
+                    <textarea
+                      className="auth-input"
+                      rows={3}
+                      value={address}
+                      onChange={(e) => setAddress(e.target.value)}
+                      placeholder="Rua, número, código postal, localidade"
+                    />
+                  </label>
 
-            <label className="auth-label">
-              IBAN (para transferência)
-              <input
-                type="text"
-                className="auth-input"
-                value={iban}
-                onChange={(e) => setIban(e.target.value)}
-                placeholder="PT50 0000 0000 0000 0000 00000"
-                maxLength={34}
-              />
-              <span className="perfil-hint">Preenchido se escolheste transferência bancária.</span>
-            </label>
+                  <div className="auth-radio-group">
+                    <span className="auth-label-block">
+                      Receber pagamentos (vendas){' '}
+                      {profile?.user_type !== 'vendedor' ? '(quando fores vendedor)' : ''}:
+                    </span>
+                    <label className="auth-radio">
+                      <input
+                        type="radio"
+                        name="paymentPreference"
+                        value="transferencia"
+                        checked={paymentPreference === 'transferencia'}
+                        onChange={() => setPaymentPreference('transferencia')}
+                      />
+                      <span>Transferência bancária (IBAN)</span>
+                    </label>
+                    <label className="auth-radio">
+                      <input
+                        type="radio"
+                        name="paymentPreference"
+                        value="mbway"
+                        checked={paymentPreference === 'mbway'}
+                        onChange={() => setPaymentPreference('mbway')}
+                      />
+                      <span>MB Way</span>
+                    </label>
+                  </div>
 
-            <button type="submit" className="btn btn-primary auth-submit" disabled={saving}>
-              {saving ? 'A guardar...' : 'Guardar perfil'}
-            </button>
-          </form>
-        </div>
+                  <label className="auth-label">
+                    IBAN (para transferência)
+                    <input
+                      type="text"
+                      className="auth-input"
+                      value={iban}
+                      onChange={(e) => setIban(e.target.value)}
+                      placeholder="PT50 0000 0000 0000 0000 00000"
+                      maxLength={34}
+                    />
+                    <span className="perfil-hint">Preenchido se escolheste transferência bancária.</span>
+                  </label>
 
-        <p style={{ marginTop: '1rem' }}>
+                  <button type="submit" className="btn btn-primary auth-submit perfil-form__submit" disabled={saving}>
+                    {saving ? 'A guardar...' : 'Guardar perfil'}
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </section>
+
+        <nav className="perfil-page__foot" aria-label="Ligações">
           <Link href="/">Voltar ao início</Link>
           {profile?.user_type === 'vendedor' && (
-            <> · <Link href="/vendedor">Área vendedor</Link></>
+            <>
+              <span className="perfil-page__foot-sep" aria-hidden>
+                ·
+              </span>
+              <Link href="/vendedor">Área vendedor</Link>
+              <span className="perfil-page__foot-sep" aria-hidden>
+                ·
+              </span>
+              <Link href="/vender">Taxas (vendedores)</Link>
+            </>
           )}
-        </p>
+        </nav>
       </main>
       <Footer />
     </div>

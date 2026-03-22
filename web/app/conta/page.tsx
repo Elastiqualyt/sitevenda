@@ -6,20 +6,25 @@ import { useAuth } from '@/lib/auth-context';
 export default function ContaOverviewPage() {
   const { profile } = useAuth();
   const bal = Number(profile?.balance ?? 0);
+  const isVendedor = profile?.user_type === 'vendedor';
 
   return (
     <div className="vendedor-page">
       <h1>Visão geral</h1>
       <p className="auth-subtitle">
-        Geres aqui o teu saldo, vês compras pagas, descarregas digitais e acedes às conversas com vendedores.
+        {isVendedor
+          ? 'Geres aqui o teu saldo, vês compras pagas, descarregas digitais e acedes às conversas com vendedores.'
+          : 'Vês compras pagas, descarregas digitais e acedes às conversas com vendedores.'}
       </p>
 
       <div className="conta-dashboard-grid">
-        <Link href="/conta/saldo" className="conta-dash-card">
-          <h2>Saldo</h2>
-          <p className="conta-dash-card__value">{bal.toFixed(2)} €</p>
-          <span className="conta-dash-card__cta">Carregar saldo e movimentos →</span>
-        </Link>
+        {isVendedor && (
+          <Link href="/conta/saldo" className="conta-dash-card">
+            <h2>Saldo</h2>
+            <p className="conta-dash-card__value">{bal.toFixed(2)} €</p>
+            <span className="conta-dash-card__cta">Carregar saldo e movimentos →</span>
+          </Link>
+        )}
         <Link href="/conta/compras" className="conta-dash-card">
           <h2>Compras</h2>
           <p className="conta-dash-card__desc">Histórico de pedidos pagos (Stripe)</p>

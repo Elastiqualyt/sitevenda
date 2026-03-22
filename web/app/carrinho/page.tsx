@@ -8,12 +8,15 @@ import Footer from '@/components/Footer';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { useMarketplaceLists } from '@/lib/marketplace-lists-context';
+import { checkoutShippingFeeEur, roundMoney2 } from '@/lib/product-shipping';
 
 interface Product {
   id: string;
   title: string;
   price: number;
   image_url: string | null;
+  type: string;
+  shipping_fee_eur?: number | null;
 }
 
 function CarrinhoContent() {
@@ -75,10 +78,14 @@ function CarrinhoContent() {
         const p = byId.get(id);
         const qty = cartByProductId.get(id) ?? 0;
         if (!p || qty < 1) return null;
-        const line = Number(p.price) * qty;
-        return { product: p, qty, line };
+        const sub = roundMoney2(Number(p.price) * qty);
+        const ship = checkoutShippingFeeEur(p.type, p.shipping_fee_eur);
+        const line = roundMoney2(sub + ship);
+        return { product: p, qty, line, sub, ship };
       })
-      .filter((x): x is { product: Product; qty: number; line: number } => x !== null);
+      .filter(
+        (x): x is { product: Product; qty: number; line: number; sub: number; ship: number } => x !== null
+      );
   }, [cartIds, byId, cartByProductId]);
 
   const total = useMemo(() => lines.reduce((s, l) => s + l.line, 0), [lines]);
@@ -106,9 +113,10 @@ function CarrinhoContent() {
         },
         body: JSON.stringify({ items }),
       });
-      const data = (await res.json()) as { url?: string; error?: string };
+      const data = (await res.json()) as { url?: string; error?: string; details?: string | null };
       if (!res.ok) {
-        setCheckoutError(data.error ?? 'Não foi possível iniciar o pagamento.');
+        const hint = data.details ? ` (${data.details})` : '';
+        setCheckoutError((data.error ?? 'Não foi possível iniciar o pagamento.') + hint);
         setCheckoutLoading(false);
         return;
       }
@@ -146,7 +154,7 @@ function CarrinhoContent() {
         ) : (
           <>
             <ul className="cart-list">
-              {lines.map(({ product: p, qty, line }) => (
+              {lines.map(({ product: p, qty, line, sub, ship }) => (
                 <li key={p.id} className="cart-row">
                   <Link href={`/produtos/${p.id}`} className="cart-row__img">
                     {p.image_url ? (
@@ -159,7 +167,12 @@ function CarrinhoContent() {
                     <Link href={`/produtos/${p.id}`} className="cart-row__title">
                       {p.title}
                     </Link>
-                    <p className="cart-row__unit">{Number(p.price).toFixed(2)} € / un.</p>
+                    <p className="cart-row__unit">
+                      {sub.toFixed(2)} € (artigo)
+                      {ship > 0 ? (
+                        <span className="cart-row__ship"> + {ship.toFixed(2)} € portes</span>
+                      ) : null}
+                    </p>
                   </div>
                   <div className="cart-row__qty">
                     <label htmlFor={`qty-${p.id}`} className="visually-hidden">
@@ -203,7 +216,7 @@ function CarrinhoContent() {
                   disabled={checkoutLoading || total < 0.5}
                   onClick={() => void payWithStripe()}
                 >
-                  {checkoutLoading ? 'A redirecionar para o Stripe…' : 'Pagar com cartão (Stripe)'}
+                  {checkoutLoading ? 'A redirecionar para o Stripe…' : 'Finalizar compra'}
                 </button>
                 {total < 0.5 ? (
                   <p className="cart-note">O valor mínimo para pagamento com cartão é 0,50 €.</p>
@@ -216,10 +229,6 @@ function CarrinhoContent() {
               </p>
             )}
 
-            <p className="cart-note">
-              Pagamento seguro via Stripe. Após o pagamento, o saldo dos vendedores é atualizado; para
-              combinar envio ou levantamento contacta o vendedor em Mensagens.
-            </p>
             <Link href="/produtos" className="btn btn-secondary">
               Continuar a comprar
             </Link>

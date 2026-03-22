@@ -1,8 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { Suspense, useEffect, useState, useMemo } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { Suspense, useEffect, useState, useMemo, useCallback } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import {
   CATEGORIES,
   CATEGORY_ENTRETERIMENTO,
@@ -34,11 +34,13 @@ interface Product {
 }
 
 function ProdutosContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const tipoRaw = searchParams.get('tipo') ?? '';
   const tipoParam = tipoRaw ? normalizeProductType(tipoRaw) || tipoRaw : '';
   const categoriaParam = searchParams.get('categoria') ?? '';
   const subcategoriasParam = searchParams.get('subcategorias') ?? '';
+  const qParam = searchParams.get('q') ?? '';
 
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -56,9 +58,12 @@ function ProdutosContent() {
     ) {
       p.set('subcategorias', subcategorias.join(','));
     }
+    if (qParam.trim()) {
+      p.set('q', qParam.trim());
+    }
     const s = p.toString();
     return s ? `?${s}` : '';
-  }, [tipo, categoria, subcategorias]);
+  }, [tipo, categoria, subcategorias, qParam]);
 
   useEffect(() => {
     setTipo(tipoParam);
@@ -80,22 +85,27 @@ function ProdutosContent() {
     })();
   }, [apiParams]);
 
-  const writeUrl = (next: { tipo: string; categoria: string; subcategorias: string[] }) => {
-    const url = new URL(window.location.href);
-    if (next.tipo) url.searchParams.set('tipo', next.tipo);
-    else url.searchParams.delete('tipo');
-    if (next.categoria) url.searchParams.set('categoria', next.categoria);
-    else url.searchParams.delete('categoria');
-    if (
-      (next.categoria === CATEGORY_PRODUTO_DIGITAL || next.categoria === CATEGORY_ENTRETERIMENTO) &&
-      next.subcategorias.length
-    ) {
-      url.searchParams.set('subcategorias', next.subcategorias.join(','));
-    } else {
-      url.searchParams.delete('subcategorias');
-    }
-    window.history.replaceState({}, '', url.toString());
-  };
+  const writeUrl = useCallback(
+    (next: { tipo: string; categoria: string; subcategorias: string[] }) => {
+      const url = new URL(window.location.href);
+      const qKeep = url.searchParams.get('q');
+      if (next.tipo) url.searchParams.set('tipo', next.tipo);
+      else url.searchParams.delete('tipo');
+      if (next.categoria) url.searchParams.set('categoria', next.categoria);
+      else url.searchParams.delete('categoria');
+      if (
+        (next.categoria === CATEGORY_PRODUTO_DIGITAL || next.categoria === CATEGORY_ENTRETERIMENTO) &&
+        next.subcategorias.length
+      ) {
+        url.searchParams.set('subcategorias', next.subcategorias.join(','));
+      } else {
+        url.searchParams.delete('subcategorias');
+      }
+      if (qKeep) url.searchParams.set('q', qKeep);
+      router.replace(url.pathname + url.search, { scroll: false });
+    },
+    [router]
+  );
 
   const updateTipo = (newTipo: string) => {
     setTipo(newTipo);
@@ -122,6 +132,12 @@ function ProdutosContent() {
 
       <main className="main">
         <h1>Produtos</h1>
+        {qParam.trim() ? (
+          <p className="produtos-search-hint" role="status">
+            Resultados para &quot;{qParam.trim()}&quot;
+            {categoriaParam ? ` · ${getCategoryLabel(categoriaParam)}` : ''}
+          </p>
+        ) : null}
         <div className="filters">
           <span className="filters-label">Tipo:</span>
           <button

@@ -1,14 +1,15 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import type { BalanceTransaction } from '@/lib/types';
 
 export default function ContaSaldoPage() {
-  const { user, profile, refreshProfile } = useAuth();
+  const router = useRouter();
+  const { user, profile, loading: authLoading, refreshProfile } = useAuth();
   const [transactions, setTransactions] = useState<BalanceTransaction[]>([]);
-  const [depositAmount, setDepositAmount] = useState('');
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [loading, setLoading] = useState(true);
   const [balanceLoading, setBalanceLoading] = useState(false);
@@ -20,7 +21,18 @@ export default function ContaSaldoPage() {
   }, [profile?.balance]);
 
   useEffect(() => {
-    if (!user?.id) return;
+    if (authLoading) return;
+    if (profile && profile.user_type !== 'vendedor') {
+      router.replace('/conta');
+    }
+  }, [authLoading, profile, router]);
+
+  useEffect(() => {
+    if (!user?.id || authLoading) return;
+    if (!profile || profile.user_type !== 'vendedor') {
+      setLoading(false);
+      return;
+    }
     (async () => {
       try {
         const { data } = await supabase
@@ -34,36 +46,7 @@ export default function ContaSaldoPage() {
         setLoading(false);
       }
     })();
-  }, [user?.id]);
-
-  const handleDeposit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const amount = parseFloat(depositAmount.replace(',', '.'));
-    if (isNaN(amount) || amount <= 0) {
-      setMessage('Indica um valor válido.');
-      return;
-    }
-    setBalanceLoading(true);
-    setMessage('');
-    const { data } = await supabase.rpc('add_balance', { amount_arg: amount });
-    setBalanceLoading(false);
-    if (data?.ok) {
-      setDepositAmount('');
-      setCurrentBalance(data.balance);
-      setMessage('Saldo adicionado.');
-      const { data: tx } = await supabase
-        .from('balance_transactions')
-        .select('*')
-        .eq('user_id', user?.id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
-      if (tx) setTransactions((t) => [tx as BalanceTransaction, ...t]);
-      await refreshProfile();
-    } else {
-      setMessage(data?.error === 'invalid' ? 'Valor inválido.' : 'Erro ao adicionar.');
-    }
-  };
+  }, [user?.id, profile, authLoading]);
 
   const handleWithdraw = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -98,6 +81,22 @@ export default function ContaSaldoPage() {
     }
   };
 
+  if (authLoading || !profile) {
+    return (
+      <div className="vendedor-page">
+        <p className="loading">A carregar...</p>
+      </div>
+    );
+  }
+
+  if (profile.user_type !== 'vendedor') {
+    return (
+      <div className="vendedor-page">
+        <p className="loading">A redirecionar...</p>
+      </div>
+    );
+  }
+
   const balanceLabel = (type: string) => {
     switch (type) {
       case 'deposit':
@@ -127,25 +126,6 @@ export default function ContaSaldoPage() {
       </div>
 
       <div className="financas-actions">
-        <div className="auth-card financas-form-card">
-          <h3>Carregar saldo</h3>
-          <p className="auth-subtitle">Simula um depósito na conta (teste / demonstração).</p>
-          <form onSubmit={handleDeposit} className="auth-form">
-            <label className="auth-label">
-              Valor (€)
-              <input
-                type="text"
-                className="auth-input"
-                value={depositAmount}
-                onChange={(e) => setDepositAmount(e.target.value)}
-                placeholder="0.00"
-              />
-            </label>
-            <button type="submit" className="btn btn-primary" disabled={balanceLoading}>
-              {balanceLoading ? 'A processar...' : 'Adicionar saldo'}
-            </button>
-          </form>
-        </div>
         <div className="auth-card financas-form-card">
           <h3>Sacar saldo</h3>
           <p className="auth-subtitle">Regista um pedido de levantamento do saldo interno.</p>

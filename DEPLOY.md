@@ -1,157 +1,163 @@
 # Deploy: Supabase + Vercel
 
-Guia para colocar o **Next.js** (`web/`) online na **Vercel** com base de dados **Supabase** em produção.
+Guia para aplicar a base de dados no **Supabase** e publicar o site Next.js na **Vercel**.
+
+> **Segurança:** nunca commits ` .env.local`, chaves `service_role` ou segredos Stripe no Git.
 
 ---
 
 ## Pré-requisitos
 
-- Conta em [supabase.com](https://supabase.com) e [vercel.com](https://vercel.com)
-- [Supabase CLI](https://supabase.com/docs/guides/cli) instalado (`supabase --version`)
-- Repositório Git (GitHub/GitLab/Bitbucket) — a Vercel faz deploy a partir do Git
-- Se ainda não tens Git no projeto: `git init`, commit, e push para o remoto
+- Conta [Supabase](https://supabase.com) com um projeto já criado.
+- Conta [Vercel](https://vercel.com) (login com GitHub/GitLab/Bitbucket ajuda a ligar o repositório).
+- [Supabase CLI](https://supabase.com/docs/guides/cli) instalada.
+- [Stripe](https://stripe.com) (se quiseres pagamentos em produção).
+
+### Instalar Supabase CLI
+
+```powershell
+npm install -g supabase
+```
+
+Confirma: `supabase --version`
 
 ---
 
-## 1. Supabase (projeto em produção)
+## 1. Supabase — migrações (base de dados)
 
-### 1.1 Criar o projeto
+Na raiz do repositório (pasta que contém `supabase/`):
 
-1. [Dashboard Supabase](https://supabase.com/dashboard) → **New project**
-2. Escolhe região, password da BD, e **repara na versão do Postgres** (deve alinhar com `supabase/config.toml` → `major_version` se usares CLI local)
+### 1.1 Login
 
-### 1.2 Ligar o CLI ao projeto remoto
-
-Na pasta do projeto (`c:\etsy`):
-
-```bash
-cd c:\etsy
+```powershell
 supabase login
-supabase link --project-ref <PROJECT_REF>
 ```
 
-O **Project ref** está em: Dashboard → **Project Settings** → **General** → *Reference ID*.
+Abre o browser para autenticar.
 
-### 1.3 Aplicar migrations (schema)
+### 1.2 Ligar o projeto local ao projeto na nuvem
 
-```bash
+No dashboard Supabase: **Settings → General → Reference ID** (é o `project-ref`).
+
+```powershell
+cd supabase
+supabase link --project-ref <O_TEU_PROJECT_REF>
+```
+
+Segue as instruções (pode pedir a password da base de dados).
+
+### 1.3 Aplicar todas as migrações
+
+```powershell
 supabase db push
 ```
 
-Isto aplica todas as migrações em `supabase/migrations/` na base remota.
+Isto aplica os ficheiros em `supabase/migrations/` à base **remota**.  
+Se aparecerem conflitos ou erros de ordem, resolve primeiro em ambiente de teste ou com backup.
 
 ### 1.4 Storage (buckets)
 
-Segue [`supabase/STORAGE.md`](./supabase/STORAGE.md): cria os buckets (`product-images`, `digital-files`, `avatars`, etc.) e confirma que as migrações de Storage já foram aplicadas com o `db push`.
+As políticas RLS dos buckets estão nas migrações; confirma no dashboard **Storage** que existem os buckets necessários (ex.: avatares, imagens de produtos, ficheiros digitais).  
+Mais detalhes: `supabase/STORAGE.md`.
 
-### 1.5 API Keys (para a Vercel)
+### 1.5 Chaves para a Vercel (copiar do Supabase)
 
-Dashboard → **Project Settings** → **API**:
+Em **Settings → API**:
 
-| Variável | Onde usar |
-|----------|-----------|
-| **Project URL** | `NEXT_PUBLIC_SUPABASE_URL` |
-| **anon public** | `NEXT_PUBLIC_SUPABASE_ANON_KEY` |
-| **service_role** (secret) | `SUPABASE_SERVICE_ROLE_KEY` — só servidor, nunca no cliente |
-
-### 1.6 Auth (URLs de redirect)
-
-Dashboard → **Authentication** → **URL Configuration**:
-
-- **Site URL**: `https://teu-dominio.vercel.app` (ou domínio customizado)
-- **Redirect URLs**: adiciona `https://teu-dominio.vercel.app/**` e, em dev, `http://localhost:3000/**`
-
-Sem isto, login/registo e OAuth podem falhar em produção.
+| Nome na Vercel | Onde copiar |
+|----------------|-------------|
+| `NEXT_PUBLIC_SUPABASE_URL` | Project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `anon` `public` |
+| `SUPABASE_SERVICE_ROLE_KEY` | `service_role` **(só servidor — webhook Stripe)** |
 
 ---
 
-## 2. Vercel (app Next.js)
+## 2. Vercel — site (`web/`)
 
-### 2.1 Novo projeto
+### 2.1 Ligar o repositório
 
-1. [Vercel Dashboard](https://vercel.com/dashboard) → **Add New** → **Project**
-2. Importa o repositório Git
-3. **Importante — Root Directory**: define **`web`** (a app Next.js está dentro de `web/`, não na raiz do monorepo)
-4. Framework: **Next.js** (detetado automaticamente)
-5. **Build Command**: `npm run build` (default)
-6. **Output**: default do Next
+1. [Vercel Dashboard](https://vercel.com/dashboard) → **Add New… → Project**.
+2. Importa o repositório Git onde está este código.
+3. **Importante:** em **Root Directory**, define **`web`** (o Next.js está dentro de `web/`, não na raiz do monorepo).
 
 ### 2.2 Variáveis de ambiente (Production)
 
-Em **Project** → **Settings** → **Environment Variables**, adiciona (mínimo):
+Em **Settings → Environment Variables**, adiciona (mínimo):
 
-| Nome | Valor |
-|------|--------|
+| Variável | Descrição |
+|----------|-----------|
 | `NEXT_PUBLIC_SUPABASE_URL` | URL do projeto Supabase |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | anon key |
-| `SUPABASE_SERVICE_ROLE_KEY` | service_role (secret) |
-| `NEXT_PUBLIC_APP_URL` | `https://teu-projeto.vercel.app` (ou domínio final) |
-| `STRIPE_SECRET_KEY` | chave Stripe **live** em produção |
-| `STRIPE_WEBHOOK_SECRET` | signing secret do webhook de produção |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Chave anon |
+| `SUPABASE_SERVICE_ROLE_KEY` | Service role (API routes / webhook) |
+| `STRIPE_SECRET_KEY` | Chave secreta Stripe (modo Live em produção) |
+| `STRIPE_WEBHOOK_SECRET` | Signing secret do webhook de produção (ver §3) |
 
-Opcional:
+Opcional mas recomendado:
 
-- `NEXT_PUBLIC_APP_URL` — se não definires, o código usa `VERCEL_URL` (a Vercel define automaticamente) para `getAppOrigin()`; definir explicitamente evita surpresas com domínios customizados.
+| Variável | Descrição |
+|----------|-----------|
+| `NEXT_PUBLIC_APP_URL` | URL canónica do site, ex. `https://terraplace.pt`. Se omitires, o código usa `VERCEL_URL` (domínio de pré-visualização `.vercel.app`). |
 
-Marca todas como **Production** (e **Preview** se quiseres PRs com as mesmas keys de teste).
+**Não** marques `SUPABASE_SERVICE_ROLE_KEY` nem `STRIPE_*` como expostas ao browser (só servidor).
 
-### 2.3 Stripe em produção
+### 2.3 Build
 
-1. Dashboard Stripe → **Developers** → **Webhooks** → **Add endpoint**
-2. URL: `https://teu-dominio.vercel.app/api/stripe/webhook`
-3. Eventos: pelo menos **`checkout.session.completed`** (é o que o código processa em `web/app/api/stripe/webhook/route.ts`)
-4. Copia o **Signing secret** para `STRIPE_WEBHOOK_SECRET` na Vercel
+- **Framework Preset:** Next.js  
+- **Build Command:** `npm run build` (por defeito dentro de `web/`)  
+- **Output:** automático  
 
-### 2.4 Deploy
+Faz **Deploy**. Após o primeiro deploy, copia o URL (ex. `https://xxx.vercel.app`).
 
-- **Push** para a branch principal → deploy automático
-- Ou **Redeploy** no dashboard após alterares env vars
+### 2.4 Deploy a partir do terminal (alternativa)
+
+Na pasta `web/` (com [Vercel CLI](https://vercel.com/docs/cli)):
+
+```powershell
+cd web
+npx vercel login
+npx vercel --prod
+```
+
+As variáveis podem ser definidas no dashboard ou com `vercel env pull` / `vercel env add`.
 
 ---
 
-## 3. Checklist rápido
+## 3. Stripe (produção)
 
-- [ ] `supabase link` + `supabase db push`
-- [ ] Buckets Storage criados (ver `STORAGE.md`)
-- [ ] Env vars na Vercel (Supabase + Stripe + `NEXT_PUBLIC_APP_URL` se necessário)
-- [ ] Auth URLs no Supabase com o domínio Vercel
-- [ ] Webhook Stripe aponta para `https://.../api/stripe/webhook`
+1. Dashboard Stripe → **Developers → Webhooks → Add endpoint**.
+2. **Endpoint URL:** `https://<TEU_DOMINIO>/api/stripe/webhook`  
+   (substitui pelo domínio Vercel ou domínio personalizado.)
+3. Evento: **`checkout.session.completed`**.
+4. Copia o **Signing secret** → variável `STRIPE_WEBHOOK_SECRET` na Vercel (ambiente **Production**).
+5. Usa chaves **Live** em produção (`STRIPE_SECRET_KEY`).
+
+Detalhes: `web/STRIPE.md`.
 
 ---
 
-## Problemas comuns
+## 4. Verificação pós-deploy
+
+- [ ] Site abre sem erro 500.
+- [ ] Login/registo funciona (Supabase Auth).
+- [ ] Listagem de produtos (`/produtos`) e API `GET /api/products`.
+- [ ] Pagamento de teste em modo Live (valor pequeno) ou validação do webhook nos logs Vercel / Stripe.
+
+---
+
+## Resolução rápida de problemas
 
 | Problema | O que verificar |
-|----------|------------------|
-| Build falha na Vercel | Root Directory = **`web`** |
-| `Invalid API key` / Supabase | Keys de **Production** no projeto certo |
-| Login não redireciona | **Redirect URLs** no Supabase Auth |
-| Upload de imagens falha | Buckets + políticas RLS (`STORAGE.md`) |
-| Pagamentos não atualizam | Webhook Stripe + `STRIPE_WEBHOOK_SECRET` |
+|----------|-----------------|
+| Erro ao `db push` | Versão Postgres remota vs `major_version` em `supabase/config.toml`; credenciais do `link`. |
+| Site sem dados | Migrações aplicadas? RLS permite leitura onde for preciso? |
+| Webhook Stripe falha | URL exata com HTTPS; `STRIPE_WEBHOOK_SECRET` correto; logs na Vercel (Functions) e Stripe. |
+| Redirect Stripe errado | `NEXT_PUBLIC_APP_URL` ou domínio Vercel; ver `web/lib/app-url.ts`. |
 
 ---
 
-## Deploy via CLI (fluxo habitual)
+## Ficheiros de referência no repo
 
-Na raiz do repo (migrações Supabase):
-
-```bash
-cd c:\etsy
-supabase db push
-```
-
-Na app Next.js (Vercel — produção):
-
-```bash
-cd c:\etsy\web
-npm run deploy
-# equivalente: npx vercel --prod
-```
-
-Primeira vez: `npx vercel login` e, no primeiro `vercel`, associar ao projeto / conta. Variáveis: `vercel env pull` ou dashboard.
-
-Preview (não produção):
-
-```bash
-npm run deploy:preview
-```
+- `web/.env.example` — lista de variáveis.
+- `web/STRIPE.md` — fluxo Stripe e webhook.
+- `web/DEV.md` — desenvolvimento local.
+- `supabase/migrations/` — histórico da base de dados.

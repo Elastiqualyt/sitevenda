@@ -16,6 +16,8 @@ Site em Next.js (web) e app em React Native (iOS/Android), com a mesma API.
 
 Recomendações detalhadas de **hosting, storage e base de dados** estão em **[ARCHITECTURE.md](ARCHITECTURE.md)**.
 
+**Deploy passo a passo (Supabase CLI + Vercel + Stripe):** **[DEPLOY.md](DEPLOY.md)**.
+
 ---
 
 ## Resumo da infraestrutura recomendada

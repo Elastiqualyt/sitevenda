@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import type Stripe from 'stripe';
 import { getStripe } from '@/lib/stripe-server';
 import { getAppOrigin } from '@/lib/app-url';
 import { getUserFromBearer } from '@/lib/supabase-route';
+import { createServiceClient } from '@/lib/supabase-service';
+import { checkoutShippingFeeEur, roundMoney2 } from '@/lib/product-shipping';
 
 export const runtime = 'nodejs';
 
@@ -60,7 +63,7 @@ export async function POST(request: NextRequest) {
     const productIds = [...new Set(items.map((i) => i.productId).filter(Boolean))];
     const { data: products, error: prodErr } = await supabase
       .from('products')
-      .select('id, title, price, seller_id, type, stock')
+      .select('id, title, price, seller_id, type, stock, shipping_fee_eur, ships_only_same_region')
       .in('id', productIds);
 
     if (prodErr || !products?.length) {
@@ -75,6 +78,8 @@ export async function POST(request: NextRequest) {
       title: string;
       quantity: number;
       unit_price: number;
+      product_subtotal: number;
+      shipping_fee: number;
       line_total: number;
     };
     const lines: Line[] = [];
@@ -100,13 +105,18 @@ export async function POST(request: NextRequest) {
       if (!Number.isFinite(unit) || unit < 0) {
         return NextResponse.json({ error: 'Preço inválido.' }, { status: 400 });
       }
+      const productSubtotal = roundMoney2(unit * qty);
+      const shippingFee = checkoutShippingFeeEur(type, p.shipping_fee_eur as number | null | undefined);
+      const lineTotal = roundMoney2(productSubtotal + shippingFee);
       lines.push({
         product_id: p.id as string,
         seller_id: p.seller_id as string,
         title: String(p.title).slice(0, 500),
         quantity: qty,
         unit_price: unit,
-        line_total: Math.round(unit * qty * 100) / 100,
+        product_subtotal: productSubtotal,
+        shipping_fee: shippingFee,
+        line_total: lineTotal,
       });
     }
 
@@ -118,7 +128,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { data: orderRow, error: orderErr } = await supabase
+    /**
+     * Pedidos e linhas com service role: o utilizador já foi validado pelo JWT acima;
+     * `buyer_id` vem sempre de `user.id` (nunca do body). Isto evita falhas de RLS
+     * no insert em ambientes onde as policies não coincidem com o token.
+     */
+    let admin: ReturnType<typeof createServiceClient>;
+    try {
+      admin = createServiceClient();
+    } catch (cfgErr) {
+      console.error('[create-checkout-session] service client:', cfgErr);
+      return NextResponse.json(
+        {
+          error: 'Configuração do servidor em falta.',
+          details: cfgErr instanceof Error ? cfgErr.message : String(cfgErr),
+        },
+        { status: 500 }
+      );
+    }
+
+    const { data: orderRow, error: orderErr } = await admin
       .from('orders')
       .insert({
         buyer_id: user.id,
@@ -130,13 +159,20 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (orderErr || !orderRow?.id) {
-      console.error(orderErr);
-      return NextResponse.json({ error: 'Não foi possível criar o pedido.' }, { status: 500 });
+      console.error('[create-checkout-session] orders insert:', orderErr);
+      return NextResponse.json(
+        {
+          error: 'Não foi possível criar o pedido.',
+          details: orderErr?.message ?? null,
+          code: orderErr?.code ?? null,
+        },
+        { status: 500 }
+      );
     }
 
     const orderId = orderRow.id as string;
 
-    const { error: itemsErr } = await supabase.from('order_items').insert(
+    const { error: itemsErr } = await admin.from('order_items').insert(
       lines.map((l) => ({
         order_id: orderId,
         product_id: l.product_id,
@@ -144,14 +180,23 @@ export async function POST(request: NextRequest) {
         title: l.title,
         quantity: l.quantity,
         unit_price: l.unit_price,
+        product_subtotal_eur: l.product_subtotal,
+        shipping_fee_eur: l.shipping_fee,
         line_total: l.line_total,
       }))
     );
 
     if (itemsErr) {
-      console.error(itemsErr);
-      await supabase.from('orders').delete().eq('id', orderId);
-      return NextResponse.json({ error: 'Não foi possível guardar as linhas do pedido.' }, { status: 500 });
+      console.error('[create-checkout-session] order_items insert:', itemsErr);
+      await admin.from('orders').delete().eq('id', orderId);
+      return NextResponse.json(
+        {
+          error: 'Não foi possível guardar as linhas do pedido.',
+          details: itemsErr?.message ?? null,
+          code: itemsErr?.code ?? null,
+        },
+        { status: 500 }
+      );
     }
 
     const origin = getAppOrigin();
@@ -174,19 +219,36 @@ export async function POST(request: NextRequest) {
             buyer_id: user.id,
           },
         },
-        line_items: lines.map((l) => ({
-          price_data: {
-            currency: 'eur',
-            unit_amount: Math.round(l.unit_price * 100),
-            product_data: {
-              name: l.title.slice(0, 120),
+        line_items: lines.flatMap((l) => {
+          const stripeItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [
+            {
+              price_data: {
+                currency: 'eur',
+                unit_amount: Math.round(l.unit_price * 100),
+                product_data: {
+                  name: l.title.slice(0, 120),
+                },
+              },
+              quantity: l.quantity,
             },
-          },
-          quantity: l.quantity,
-        })),
+          ];
+          if (l.shipping_fee > 0) {
+            stripeItems.push({
+              price_data: {
+                currency: 'eur',
+                unit_amount: Math.round(l.shipping_fee * 100),
+                product_data: {
+                  name: `Portes: ${l.title.slice(0, 100)}`,
+                },
+              },
+              quantity: 1,
+            });
+          }
+          return stripeItems;
+        }),
       });
 
-      const { error: updErr } = await supabase
+      const { error: updErr } = await admin
         .from('orders')
         .update({ stripe_checkout_session_id: session.id })
         .eq('id', orderId);
@@ -196,14 +258,14 @@ export async function POST(request: NextRequest) {
       }
 
       if (!session.url) {
-        await supabase.from('orders').delete().eq('id', orderId);
+        await admin.from('orders').delete().eq('id', orderId);
         return NextResponse.json({ error: 'Stripe não devolveu URL de pagamento.' }, { status: 500 });
       }
 
       return NextResponse.json({ url: session.url, orderId });
     } catch (e) {
       console.error(e);
-      await supabase.from('orders').delete().eq('id', orderId);
+      await admin.from('orders').delete().eq('id', orderId);
       return NextResponse.json(
         { error: e instanceof Error ? e.message : 'Erro ao criar sessão Stripe.' },
         { status: 500 }

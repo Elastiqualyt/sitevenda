@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { supabase } from './supabase';
 import { parseUserType } from './user-type';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
@@ -34,6 +35,7 @@ export interface AuthState {
 const AuthContext = createContext<AuthState | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
   const [user, setUser] = useState<{ id: string; email?: string } | null>(null);
   const [sessionUser, setSessionUser] = useState<SupabaseUser | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -125,10 +127,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signOut = async () => {
-    await supabase.auth.signOut();
-    setSessionUser(null);
-    setUser(null);
-    setProfile(null);
+    try {
+      await supabase.auth.signOut();
+    } finally {
+      setSessionUser(null);
+      setUser(null);
+      setProfile(null);
+      router.replace('/');
+    }
   };
 
   const refreshProfile = async () => {

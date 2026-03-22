@@ -9,16 +9,20 @@ import { useAuth } from '@/lib/auth-context';
 
 const NAV = [
   { href: '/conta', label: 'Visão geral' },
-  { href: '/conta/saldo', label: 'Saldo' },
+  { href: '/conta/saldo', label: 'Saldo', vendedorOnly: true },
   { href: '/conta/compras', label: 'Compras' },
   { href: '/conta/digitais', label: 'Ficheiros digitais' },
   { href: '/mensagens', label: 'Conversas (chat)' },
-];
+] as const;
 
 export default function ContaLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, loading } = useAuth();
+  const { user, profile, loading } = useAuth();
+
+  const navItems = NAV.filter(
+    (item) => !('vendedorOnly' in item && item.vendedorOnly) || profile?.user_type === 'vendedor',
+  );
 
   useEffect(() => {
     if (loading) return;
@@ -45,9 +49,13 @@ export default function ContaLayout({ children }: { children: React.ReactNode })
       <div className="vendedor-layout conta-layout">
         <aside className="vendedor-sidebar">
           <h2 className="vendedor-sidebar__title">Área da conta</h2>
-          <p className="conta-sidebar__hint">Compras, saldo e ficheiros digitais</p>
+          <p className="conta-sidebar__hint">
+            {profile?.user_type === 'vendedor'
+              ? 'Compras, saldo e ficheiros digitais'
+              : 'Compras e ficheiros digitais'}
+          </p>
           <nav className="vendedor-nav">
-            {NAV.map((item) => {
+            {navItems.map((item) => {
               const active =
                 item.href === '/conta'
                   ? pathname === '/conta'

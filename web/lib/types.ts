@@ -17,6 +17,10 @@ export interface Product {
   /** Slugs das subcategorias (categoria entretenimento). */
   entertainment_subcategories?: string[] | null;
   stock: number;
+  /** Portes fixos por linha de pedido (só artigos físicos). null = não definido na plataforma; 0 = grátis. */
+  shipping_fee_eur?: number | null;
+  /** Se true, o vendedor indica envio apenas na própria região. */
+  ships_only_same_region?: boolean;
   created_at: string;
   updated_at: string;
 }

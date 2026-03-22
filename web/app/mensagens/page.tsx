@@ -6,9 +6,11 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { getCategoryLabel } from '@/lib/categories';
+import { useConversationMessages } from '@/lib/use-conversation-messages';
+import { useSenderNames } from '@/lib/use-sender-names';
+import { ChatMessageRow } from '@/components/ChatMessageRow';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
-import type { Message } from '@/lib/types';
 
 type ConvRow = {
   id: string;
@@ -16,6 +18,8 @@ type ConvRow = {
   buyer_id: string;
   seller_id: string;
   product?: { title: string; image_url: string | null; category: string };
+  counterpartName?: string;
+  counterpartAvatar?: string | null;
 };
 
 function MensagensContent() {
@@ -25,9 +29,12 @@ function MensagensContent() {
   const openId = searchParams.get('c');
   const [conversations, setConversations] = useState<ConvRow[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(openId);
-  const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
+  const [sendError, setSendError] = useState('');
+
+  const { messages, loadMessages } = useConversationMessages(selectedId);
+  const senderNames = useSenderNames(messages);
 
   useEffect(() => {
     setSelectedId(openId);
@@ -44,8 +51,15 @@ function MensagensContent() {
           .order('updated_at', { ascending: false });
         const list = (res.data ?? []) as ConvRow[];
         for (const c of list) {
-          const p = await supabase.from('products').select('title, image_url, category').eq('id', c.product_id).single();
+          const oid = c.seller_id === user.id ? c.buyer_id : c.seller_id;
+          const [p, pubRes] = await Promise.all([
+            supabase.from('products').select('title, image_url, category').eq('id', c.product_id).single(),
+            supabase.rpc('get_seller_public', { p_id: oid }),
+          ]);
           c.product = p.data as ConvRow['product'];
+          const pub = pubRes.data as { full_name?: string | null; avatar_url?: string | null } | null;
+          c.counterpartName = pub?.full_name?.trim() || (c.seller_id === user.id ? 'Comprador' : 'Vendedor');
+          c.counterpartAvatar = pub?.avatar_url ?? null;
         }
         setConversations(list);
       } finally {
@@ -55,50 +69,30 @@ function MensagensContent() {
   }, [user?.id]);
 
   useEffect(() => {
-    if (!selectedId) {
-      setMessages([]);
+    if (!selectedId || !user?.id) return;
+    void supabase.rpc('mark_conversation_read', { conversation_id: selectedId }).then(() => {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('marketplace-unread-refresh'));
+      }
+    });
+  }, [selectedId, messages.length, user?.id]);
+
+  const sendMessage = async () => {
+    if (!selectedId || !newMessage.trim() || !user?.id) return;
+    setSendError('');
+    const { data, error } = await supabase
+      .from('messages')
+      .insert({ conversation_id: selectedId, sender_id: user.id, content: newMessage.trim() })
+      .select()
+      .single();
+    setNewMessage('');
+    if (error) {
+      setSendError(error.message || 'Não foi possível enviar.');
       return;
     }
-    supabase
-      .from('messages')
-      .select('*')
-      .eq('conversation_id', selectedId)
-      .order('created_at', { ascending: true })
-      .then((res) => setMessages((res.data as Message[]) ?? []));
-    void supabase.rpc('mark_conversation_read', { conversation_id: selectedId }).then(() => {
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new Event('marketplace-unread-refresh'));
-      }
-    });
-    const ch = supabase
-      .channel('msgs-' + selectedId)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'messages', filter: 'conversation_id=eq.' + selectedId },
-        (p) => {
-          setMessages((m) => [...m, p.new as Message]);
-          void supabase.rpc('mark_conversation_read', { conversation_id: selectedId }).then(() => {
-            if (typeof window !== 'undefined') {
-              window.dispatchEvent(new Event('marketplace-unread-refresh'));
-            }
-          });
-        }
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(ch);
-    };
-  }, [selectedId]);
-
-  const sendMessage = () => {
-    if (!selectedId || !newMessage.trim() || !user?.id) return;
-    supabase.from('messages').insert({ conversation_id: selectedId, sender_id: user.id, content: newMessage.trim() });
-    setNewMessage('');
-    void supabase.rpc('mark_conversation_read', { conversation_id: selectedId }).then(() => {
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new Event('marketplace-unread-refresh'));
-      }
-    });
+    if (data) {
+      await loadMessages();
+    }
   };
 
   const selected = conversations.find((c) => c.id === selectedId);
@@ -128,23 +122,54 @@ function MensagensContent() {
             ) : conversations.length === 0 ? (
               <p className="empty">Ainda não tens conversas. Contacta um vendedor a partir da página de um produto.</p>
             ) : (
-              conversations.map((c) => (
-                <button
-                  key={c.id}
-                  type="button"
-                  className={'chat-list-item' + (selectedId === c.id ? ' chat-list-item--active' : '')}
-                  onClick={() => {
-                    setSelectedId(c.id);
-                    router.push(`/mensagens?c=${encodeURIComponent(c.id)}`);
-                  }}
-                >
-                  {c.product?.image_url ? <img src={c.product.image_url} alt="" className="chat-list-item__img" /> : <span className="chat-list-item__placeholder">📦</span>}
-                  <div className="chat-list-item__text">
-                    <strong>{c.product?.title ?? 'Produto'}</strong>
-                    <span className="chat-list-item__meta">{c.seller_id === user.id ? 'Vendedor' : 'Comprador'}</span>
+              conversations.map((c) => {
+                const oid = c.seller_id === user.id ? c.buyer_id : c.seller_id;
+                const thumb = c.counterpartAvatar || c.product?.image_url || null;
+                const initial = (c.counterpartName ?? 'U').slice(0, 1).toUpperCase();
+                return (
+                  <div
+                    key={c.id}
+                    role="button"
+                    tabIndex={0}
+                    className={'chat-list-item' + (selectedId === c.id ? ' chat-list-item--active' : '')}
+                    onClick={() => {
+                      setSelectedId(c.id);
+                      router.push(`/mensagens?c=${encodeURIComponent(c.id)}`);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        setSelectedId(c.id);
+                        router.push(`/mensagens?c=${encodeURIComponent(c.id)}`);
+                      }
+                    }}
+                  >
+                    {thumb ? (
+                      <img
+                        src={thumb}
+                        alt=""
+                        className={
+                          'chat-list-item__img' + (c.counterpartAvatar ? ' chat-list-item__img--avatar' : '')
+                        }
+                      />
+                    ) : (
+                      <span className="chat-list-item__placeholder chat-list-item__placeholder--letter" aria-hidden>
+                        {initial}
+                      </span>
+                    )}
+                    <div className="chat-list-item__text">
+                      <Link
+                        href={`/perfil/${oid}`}
+                        className="chat-list-item__title-link"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {c.counterpartName ?? '…'}
+                      </Link>
+                      <span className="chat-list-item__meta">{c.product?.title ?? 'Produto'}</span>
+                    </div>
                   </div>
-                </button>
-              ))
+                );
+              })
             )}
           </div>
           <div className="chat-panel">
@@ -153,20 +178,45 @@ function MensagensContent() {
             ) : (
               <>
                 <div className="chat-panel__header">
-                  <h2>{selected.product?.title ?? 'Produto'}</h2>
-                  <span>{getCategoryLabel(selected.product?.category ?? '')}</span>
+                  <h2>{selected.counterpartName ?? 'Conversa'}</h2>
+                  <span className="chat-panel__header-sub">
+                    {selected.product?.title ?? 'Produto'}
+                    {selected.product?.category ? (
+                      <>
+                        {' · '}
+                        {getCategoryLabel(selected.product.category)}
+                      </>
+                    ) : null}
+                  </span>
                 </div>
                 <div className="chat-messages">
                   {messages.map((m) => (
-                    <div key={m.id} className={'chat-message' + (m.sender_id === user.id ? ' chat-message--own' : '')}>
-                      <p className="chat-message__content">{m.content}</p>
-                      <span className="chat-message__time">{new Date(m.created_at).toLocaleString('pt-PT')}</span>
-                    </div>
+                    <ChatMessageRow
+                      key={m.id}
+                      message={m}
+                      senderName={senderNames[m.sender_id] ?? '…'}
+                      currentUserId={user.id}
+                    />
                   ))}
                 </div>
-                <form className="chat-form" onSubmit={(e) => { e.preventDefault(); sendMessage(); }}>
-                  <input type="text" className="auth-input chat-form__input" placeholder="Escreve uma mensagem..." value={newMessage} onChange={(e) => setNewMessage(e.target.value)} />
-                  <button type="submit" className="btn btn-primary">Enviar</button>
+                {sendError ? <p className="auth-error chat-send-err">{sendError}</p> : null}
+                <form
+                  className="chat-form"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void sendMessage();
+                  }}
+                >
+                  <input
+                    type="text"
+                    className="auth-input chat-form__input"
+                    placeholder="Escreve uma mensagem..."
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                  />
+                  <button type="submit" className="btn btn-primary">
+                    Enviar
+                  </button>
                 </form>
               </>
             )}

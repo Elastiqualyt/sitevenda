@@ -11,6 +11,7 @@ const NAV = [
   { href: '/vendedor/produtos', label: 'Meus produtos' },
   { href: '/vendedor/mensagens', label: 'Mensagens' },
   { href: '/vendedor/financas', label: 'Finanças' },
+  { href: '/vendedor/guia', label: 'Guia do vendedor' },
 ];
 
 export default function VendedorLayout({
@@ -54,7 +55,15 @@ export default function VendedorLayout({
               <Link
                 key={item.href}
                 href={item.href}
-                className={`vendedor-nav__link ${pathname.startsWith(item.href) ? 'vendedor-nav__link--active' : ''}`}
+                className={`vendedor-nav__link ${
+                  item.href === '/vendedor/guia'
+                    ? pathname === '/vendedor/guia'
+                      ? 'vendedor-nav__link--active'
+                      : ''
+                    : pathname.startsWith(item.href)
+                      ? 'vendedor-nav__link--active'
+                      : ''
+                }`}
               >
                 {item.label}
               </Link>

@@ -22,6 +22,8 @@ import {
   uploadDebugTimeEnd,
   uploadDebugTimeStart,
 } from '@/lib/upload-debug';
+import { SellerListingPolicy, SellerListingPolicyAcceptance } from '@/components/SellerListingPolicy';
+import { roundMoney2 } from '@/lib/product-shipping';
 
 const DIGITAL_BUCKET = 'digital-files';
 const PRODUCT_IMAGES_BUCKET = 'product-images';
@@ -48,6 +50,9 @@ export default function NovoProdutoPage() {
   const [loading, setLoading] = useState(false);
   /** Feedback durante upload (evita parecer “travado”) */
   const [uploadStatus, setUploadStatus] = useState('');
+  /** Portes: vazio = não definir na plataforma; número = EUR (0 = grátis). Só artigos físicos. */
+  const [shippingFeeInput, setShippingFeeInput] = useState('');
+  const [shipsOnlySameRegion, setShipsOnlySameRegion] = useState(false);
 
   const isProdutoDigital = category === CATEGORY_PRODUTO_DIGITAL;
   const isEntretenimento = category === CATEGORY_ENTRETERIMENTO;
@@ -138,6 +143,20 @@ export default function NovoProdutoPage() {
 
       setUploadStatus('A guardar o anúncio na base de dados…');
       const tInsert = uploadDebugTimeStart();
+      let shippingFeeEur: number | null = null;
+      if (!isProdutoDigital) {
+        const s = shippingFeeInput.trim();
+        if (s !== '') {
+          const sf = parseFloat(s.replace(',', '.'));
+          if (isNaN(sf) || sf < 0) {
+            setError('Portes: indica um valor válido em EUR ou deixa em branco.');
+            setLoading(false);
+            setUploadStatus('');
+            return;
+          }
+          shippingFeeEur = roundMoney2(sf);
+        }
+      }
       const { error: err } = await supabase.from('products').insert({
         seller_id: user.id,
         title: title.trim(),
@@ -151,6 +170,8 @@ export default function NovoProdutoPage() {
         image_url: finalImageUrl,
         gallery_urls: galleryUrlsList,
         file_url: fileUrl,
+        shipping_fee_eur: isProdutoDigital ? null : shippingFeeEur,
+        ships_only_same_region: !isProdutoDigital && shipsOnlySameRegion,
       });
       uploadDebugTimeEnd('insert products (Supabase)', tInsert);
       if (err) {
@@ -189,6 +210,7 @@ export default function NovoProdutoPage() {
         <Link href="/vendedor/produtos" className="vendedor-back">←</Link> Novo produto
       </h1>
       <div className="auth-card vendedor-form-card">
+        <SellerListingPolicy />
         <form onSubmit={handleSubmit} className="auth-form">
           {error && <p className="auth-error">{error}</p>}
           <label className="auth-label">
@@ -268,6 +290,36 @@ export default function NovoProdutoPage() {
               <input type="number" min={0} className="auth-input" value={stock} onChange={(e) => setStock(e.target.value)} />
             </label>
           )}
+          {!isProdutoDigital && (
+            <>
+              <label className="auth-label">
+                Portes (€) — opcional
+                <input
+                  type="text"
+                  className="auth-input"
+                  value={shippingFeeInput}
+                  onChange={(e) => setShippingFeeInput(e.target.value)}
+                  placeholder="Vazio = não somar portes no pagamento; 0 = grátis"
+                />
+                <span className="perfil-hint">
+                  Se preencheres, este valor é <strong>somado ao pagamento</strong> (uma vez por linha de carrinho). A
+                  comissão da plataforma (6,5 %) incide sobre preço + portes. Vê o{' '}
+                  <a href="/vendedor/guia" target="_blank" rel="noopener noreferrer">
+                    guia do vendedor
+                  </a>
+                  .
+                </span>
+              </label>
+              <label className="auth-label auth-label--checkbox">
+                <input
+                  type="checkbox"
+                  checked={shipsOnlySameRegion}
+                  onChange={(e) => setShipsOnlySameRegion(e.target.checked)}
+                />
+                <span>Só envio na minha região (o comprador deve confirmar contigo antes do envio)</span>
+              </label>
+            </>
+          )}
           <label className="auth-label">
             Fotos do anúncio * (até {MAX_AD_PHOTOS})
             <input
@@ -311,6 +363,7 @@ export default function NovoProdutoPage() {
               {digitalFile && <span className="perfil-hint">{digitalFile.name}</span>}
             </label>
           )}
+          <SellerListingPolicyAcceptance inputId="seller-policy-accept-novo" />
           <button type="submit" className="btn btn-primary auth-submit" disabled={loading}>
             {loading ? uploadStatus || 'A guardar…' : 'Criar produto'}
           </button>

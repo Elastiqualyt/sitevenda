@@ -4,6 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:turbo": "next dev --turbo",
+    "dev:clean": "node scripts/clean-next.mjs && next dev",
+    "dev:reset": "kill-port 3000,3001 && node scripts/clean-next.mjs && next dev --turbo",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -23,6 +26,7 @@
     "@types/react-dom": "^18.2.0",
     "eslint": "^8.0.0",
     "eslint-config-next": "^14.2.0",
+    "kill-port": "^2.0.1",
     "typescript": "^5.0.0"
   }
 }
