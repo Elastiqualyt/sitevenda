@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import { CATEGORIES } from '@/lib/categories';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
@@ -11,7 +12,16 @@ export default function HomePage() {
 
       <main className="main">
         <section className="hero">
-          <p className="hero__brand">{SITE_NAME}</p>
+          <div className="hero__brand" aria-label={SITE_NAME}>
+            <Image
+              src="/images/terraplace-multi.png"
+              alt={SITE_NAME}
+              width={300}
+              height={100}
+              className="hero__brand-logo"
+              priority
+            />
+          </div>
           <h1>Compre e venda com confiança</h1>
           <p>
             Artigos digitais, artesanato e itens reutilizados. Um lugar para criar e

@@ -46,7 +46,14 @@ export default function VendedorProdutosPage() {
     <div className="vendedor-page">
       <div className="vendedor-page__head">
         <h1>Meus produtos</h1>
-        <Link href="/vendedor/produtos/novo" className="btn btn-primary">+ Novo produto</Link>
+        <div className="vendedor-page__actions">
+          <Link href="/vendedor/produtos/importar" className="btn btn-secondary">
+            Importar CSV (Drive)
+          </Link>
+          <Link href="/vendedor/produtos/novo" className="btn btn-primary">
+            + Novo produto
+          </Link>
+        </div>
       </div>
       <p className="vendedor-taxas-hint">
         Taxas de listagem e comissão na venda: <Link href="/vender">política para vendedores</Link>.

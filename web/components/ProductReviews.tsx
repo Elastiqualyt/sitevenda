@@ -76,9 +76,6 @@ export function ProductReviewsSection({
       ) : (
         <p className="product-reviews-summary product-reviews-summary--muted">Ainda não há avaliações para este anúncio.</p>
       )}
-      <p className="product-reviews-hint">
-        Só quem comprou este produto (com pagamento confirmado) pode deixar uma avaliação.
-      </p>
 
       {user && canReview ? (
         <form className="product-reviews-form" onSubmit={submit}>
@@ -104,11 +101,9 @@ export function ProductReviewsSection({
           </button>
         </form>
       ) : user && !canReview ? (
-        <p className="product-reviews-locked">
-          {reviews.some((r) => r.reviewer_id === user.id)
-            ? 'Já deixaste uma avaliação neste anúncio.'
-            : 'Só podes avaliar depois de comprares este produto (pagamento concluído).'}
-        </p>
+        reviews.some((r) => r.reviewer_id === user.id) ? (
+          <p className="product-reviews-locked">Já deixaste uma avaliação neste anúncio.</p>
+        ) : null
       ) : (
         <p className="product-reviews-locked">
           <a href={`/entrar?redirect=/produtos/${productId}#avaliacoes`}>Inicia sessão</a> para veres se podes avaliar.

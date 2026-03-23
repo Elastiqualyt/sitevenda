@@ -35,6 +35,8 @@ O site fica em: **http://localhost:3000** (ou **3001** se a 3000 estiver ocupada
 
 ### Página sem estilos (HTML cru) ou erros **500** em `/_next/static/...` (CSS/JS)
 
+Isto pode aparecer em **qualquer** página (ex.: `/entrar` com ecrã branco e `Cannot find module './XXXX.js'` nos logs do terminal) — costuma ser **cache `.next` corrompido**, não um erro no código da página.
+
 No **Windows** isto é frequente: **vários processos `node`**, **cache `.next` inconsistente** ou **antivírus** a bloquear ficheiros na pasta `.next` (problema conhecido no Next.js — ver [discussion #60185](https://github.com/vercel/next.js/discussions/60185)).
 
 **Recomendado (repor tudo e usar Turbopack):**

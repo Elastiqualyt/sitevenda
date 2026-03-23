@@ -199,14 +199,13 @@ export default function Header() {
         <div className="site-header__left">
           <Link href="/" className="site-header__logo" title={SITE_NAME}>
             <Image
-              src="/images/icon-512x512.png"
+              src="/images/terraplace-multi.png"
               alt={SITE_NAME}
-              width={40}
-              height={40}
+              width={300}
+              height={100}
               className="site-header__logo-img"
               priority
             />
-            <span className="site-header__brand-name">{SITE_NAME}</span>
           </Link>
           <div className="site-header__categories-wrap" ref={categoriesRef}>
             <button
@@ -248,23 +247,6 @@ export default function Header() {
         </div>
 
         <div className="site-header__search-wrap" ref={searchWrapRef}>
-          <label className="site-header__search-cat-label" htmlFor="header-search-category">
-            <span className="visually-hidden">Categoria</span>
-            <select
-              id="header-search-category"
-              className="site-header__search-cat"
-              value={searchCategory}
-              onChange={(e) => setSearchCategory(e.target.value)}
-              aria-label="Filtrar pesquisa por categoria"
-            >
-              <option value="">Todas as categorias</option>
-              {CATEGORIES.map((c) => (
-                <option key={c.slug} value={c.slug}>
-                  {c.label}
-                </option>
-              ))}
-            </select>
-          </label>
           <form className="site-header__search" onSubmit={handleSearch} role="search">
             <input
               type="search"
@@ -422,3 +404,5 @@ export default function Header() {
     </header>
   );
 }
+
+
