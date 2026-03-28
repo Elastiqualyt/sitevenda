@@ -3,6 +3,7 @@ import Image from 'next/image';
 import { CATEGORIES } from '@/lib/categories';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
+import HomeFeaturedProducts from '@/components/HomeFeaturedProducts';
 import { SITE_NAME } from '@/lib/site-brand';
 
 export default function HomePage() {
@@ -36,6 +37,7 @@ export default function HomePage() {
             </Link>
           </div>
         </section>
+        <HomeFeaturedProducts />
 
         <section className="categories">
           <h2>Tipo de anúncio</h2>

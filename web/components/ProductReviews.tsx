@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useState, type FormEvent } from 'react';
 import { StarRating, StarRatingInput } from '@/components/StarRating';
 import { supabase } from '@/lib/supabase';
@@ -115,7 +116,9 @@ export function ProductReviewsSection({
           <li key={r.id} className="product-reviews-item">
             <div className="product-reviews-item__head">
               <StarRating value={r.rating} size="sm" />
-              <span className="product-reviews-item__name">{r.reviewer_display_name?.trim() || 'Comprador'}</span>
+              <Link href={`/perfil/${r.reviewer_id}`} className="product-reviews-item__name">
+                {r.reviewer_display_name?.trim() || 'Comprador'}
+              </Link>
               <time className="product-reviews-item__date" dateTime={r.created_at}>
                 {new Date(r.created_at).toLocaleDateString('pt-PT')}
               </time>

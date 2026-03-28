@@ -23,7 +23,7 @@ const FAQ_ITEMS = [
   },
   {
     q: 'Que taxas existem para vendedores?',
-    a: 'Aplica-se uma taxa de listagem por anúncio e uma comissão percentual sobre cada venda (incluindo portes quando definidos). O detalhe está na página Vender e no guia do vendedor.',
+    a: 'Na compra, aplica-se uma taxa de serviço paga pelo comprador (6% + 0,50 € sobre o valor do artigo e portes quando definidos). O vendedor recebe no saldo o valor declarado no anúncio.',
   },
   {
     q: 'Como funcionam os portes?',

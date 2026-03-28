@@ -63,8 +63,8 @@ export default function TermosPage() {
         <section>
           <h2>4. Pagamentos e taxas</h2>
           <p>
-            Os pagamentos podem ser processados através de prestadores externos (ex.: Stripe). Aplicam-se as taxas de
-            listagem e comissão sobre vendas descritas na área do vendedor e na documentação associada, podendo ser
+            Os pagamentos podem ser processados através de prestadores externos (ex.: Stripe). Aplica-se a taxa de
+            checkout cobrada ao comprador descrita na área do vendedor e na documentação associada, podendo ser
             atualizadas com aviso prévio razoável na plataforma.
           </p>
         </section>

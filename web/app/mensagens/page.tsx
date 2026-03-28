@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
@@ -32,6 +32,18 @@ function MensagensContent() {
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [sendError, setSendError] = useState('');
+  const [unreadByConv, setUnreadByConv] = useState<Record<string, number>>({});
+
+  const refreshUnreadCounts = useCallback(async () => {
+    if (!user?.id) return;
+    const { data, error } = await supabase.rpc('my_conversations_unread_counts');
+    if (error || !Array.isArray(data)) return;
+    const next: Record<string, number> = {};
+    for (const row of data as Array<{ conversation_id: string; unread_count: number | string }>) {
+      next[String(row.conversation_id)] = Number(row.unread_count) || 0;
+    }
+    setUnreadByConv(next);
+  }, [user?.id]);
 
   const { messages, loadMessages } = useConversationMessages(selectedId);
   const senderNames = useSenderNames(messages);
@@ -62,15 +74,39 @@ function MensagensContent() {
           c.counterpartAvatar = pub?.avatar_url ?? null;
         }
         setConversations(list);
+        await refreshUnreadCounts();
       } finally {
         setLoading(false);
       }
     })();
-  }, [user?.id]);
+  }, [user?.id, refreshUnreadCounts]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    const onRefresh = () => {
+      void refreshUnreadCounts();
+    };
+    window.addEventListener('marketplace-unread-refresh', onRefresh);
+    const channel = supabase
+      .channel(`messages-unread-${user.id}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'messages' },
+        () => {
+          void refreshUnreadCounts();
+        }
+      )
+      .subscribe();
+    return () => {
+      window.removeEventListener('marketplace-unread-refresh', onRefresh);
+      void supabase.removeChannel(channel);
+    };
+  }, [user?.id, refreshUnreadCounts]);
 
   useEffect(() => {
     if (!selectedId || !user?.id) return;
     void supabase.rpc('mark_conversation_read', { conversation_id: selectedId }).then(() => {
+      setUnreadByConv((prev) => ({ ...prev, [selectedId]: 0 }));
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new Event('marketplace-unread-refresh'));
       }
@@ -126,12 +162,22 @@ function MensagensContent() {
                 const oid = c.seller_id === user.id ? c.buyer_id : c.seller_id;
                 const thumb = c.counterpartAvatar || c.product?.image_url || null;
                 const initial = (c.counterpartName ?? 'U').slice(0, 1).toUpperCase();
+                const unreadHere = (unreadByConv[c.id] ?? 0) > 0;
                 return (
                   <div
                     key={c.id}
                     role="button"
                     tabIndex={0}
-                    className={'chat-list-item' + (selectedId === c.id ? ' chat-list-item--active' : '')}
+                    className={
+                      'chat-list-item' +
+                      (selectedId === c.id ? ' chat-list-item--active' : '') +
+                      (unreadHere ? ' chat-list-item--unread' : '')
+                    }
+                    aria-label={
+                      unreadHere
+                        ? `Conversa com ${c.counterpartName ?? 'utilizador'}, mensagens por ler`
+                        : `Conversa com ${c.counterpartName ?? 'utilizador'}`
+                    }
                     onClick={() => {
                       setSelectedId(c.id);
                       router.push(`/mensagens?c=${encodeURIComponent(c.id)}`);
@@ -144,19 +190,25 @@ function MensagensContent() {
                       }
                     }}
                   >
-                    {thumb ? (
-                      <img
-                        src={thumb}
-                        alt=""
-                        className={
-                          'chat-list-item__img' + (c.counterpartAvatar ? ' chat-list-item__img--avatar' : '')
-                        }
-                      />
-                    ) : (
-                      <span className="chat-list-item__placeholder chat-list-item__placeholder--letter" aria-hidden>
-                        {initial}
-                      </span>
-                    )}
+                    <Link
+                      href={`/perfil/${oid}`}
+                      aria-label={`Ver perfil público de ${c.counterpartName ?? 'utilizador'}`}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {thumb ? (
+                        <img
+                          src={thumb}
+                          alt={`Foto de ${c.counterpartName ?? 'utilizador'}`}
+                          className={
+                            'chat-list-item__img' + (c.counterpartAvatar ? ' chat-list-item__img--avatar' : '')
+                          }
+                        />
+                      ) : (
+                        <span className="chat-list-item__placeholder chat-list-item__placeholder--letter" aria-hidden>
+                          {initial}
+                        </span>
+                      )}
+                    </Link>
                     <div className="chat-list-item__text">
                       <Link
                         href={`/perfil/${oid}`}
@@ -178,7 +230,11 @@ function MensagensContent() {
             ) : (
               <>
                 <div className="chat-panel__header">
-                  <h2>{selected.counterpartName ?? 'Conversa'}</h2>
+                  <h2>
+                    <Link href={`/perfil/${selected.seller_id === user.id ? selected.buyer_id : selected.seller_id}`}>
+                      {selected.counterpartName ?? 'Conversa'}
+                    </Link>
+                  </h2>
                   <span className="chat-panel__header-sub">
                     {selected.product?.title ?? 'Produto'}
                     {selected.product?.category ? (

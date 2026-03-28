@@ -3,32 +3,10 @@ import { createClient } from '@supabase/supabase-js';
 import { getUserFromBearer } from '@/lib/supabase-route';
 import { parseCsvRecords } from '@/lib/csv-parse';
 import { normalizeGoogleDriveDownloadUrl } from '@/lib/google-drive-url';
-import {
-  CATEGORY_ENTRETERIMENTO,
-  CATEGORY_PRODUTO_DIGITAL,
-  DEFAULT_CATEGORY_SLUG,
-  DIGITAL_SUBCATEGORIES,
-  ENTERTAINMENT_SUBCATEGORIES,
-} from '@/lib/categories';
-import { parseUserType } from '@/lib/user-type';
+import { CATEGORY_PRODUTO_DIGITAL, DIGITAL_SUBCATEGORIES } from '@/lib/categories';
+import { getCell, getGalleryUrlsFromRow, parseSubcatList } from '@/lib/csv-import-helpers';
 
 const MAX_ROWS = 50;
-
-function getCell(row: Record<string, string>, ...aliases: string[]): string {
-  for (const a of aliases) {
-    const v = row[a.toLowerCase()];
-    if (v !== undefined && v !== '') return v;
-  }
-  return '';
-}
-
-function parseSubcatList(s: string): string[] {
-  if (!s.trim()) return [];
-  return s
-    .split(/[|;,\n]/)
-    .map((x) => x.trim().toLowerCase())
-    .filter(Boolean);
-}
 
 export async function POST(request: NextRequest) {
   try {
@@ -53,19 +31,6 @@ export async function POST(request: NextRequest) {
       auth: { persistSession: false, autoRefreshToken: false },
       global: { headers: { Authorization: `Bearer ${token}` } },
     });
-
-    const { data: profile, error: profileErr } = await supabase
-      .from('profiles')
-      .select('user_type')
-      .eq('id', user.id)
-      .single();
-
-    if (profileErr || !profile) {
-      return NextResponse.json({ error: 'Perfil não encontrado.' }, { status: 403 });
-    }
-    if (parseUserType(profile.user_type) !== 'vendedor') {
-      return NextResponse.json({ error: 'Apenas contas vendedor podem importar.' }, { status: 403 });
-    }
 
     const ct = request.headers.get('content-type') ?? '';
     let csvText: string;
@@ -154,34 +119,24 @@ export async function POST(request: NextRequest) {
       }
 
       const description = getCell(row, 'description', 'descricao', 'descrição');
-      let category = getCell(row, 'category', 'categoria').toLowerCase() || CATEGORY_PRODUTO_DIGITAL;
-      if (!category) category = CATEGORY_PRODUTO_DIGITAL;
+      const categoryRaw = getCell(row, 'category', 'categoria').toLowerCase().trim();
+      if (categoryRaw && categoryRaw !== CATEGORY_PRODUTO_DIGITAL) {
+        errors.push({
+          row: rowNum,
+          message: `Importação só aceita categoria "${CATEGORY_PRODUTO_DIGITAL}" (ou vazio).`,
+        });
+        continue;
+      }
 
       let digitalSubcategories = parseSubcatList(
         getCell(row, 'digital_subcategories', 'subcategorias_digitais')
       );
-      let entertainmentSubcategories = parseSubcatList(
-        getCell(row, 'entertainment_subcategories', 'subcategorias_entretenimento')
-      );
-
-      if (category === CATEGORY_PRODUTO_DIGITAL) {
-        if (digitalSubcategories.length === 0) {
-          digitalSubcategories = [DIGITAL_SUBCATEGORIES[0].slug];
-        }
-      } else {
-        digitalSubcategories = [];
+      if (digitalSubcategories.length === 0) {
+        digitalSubcategories = [DIGITAL_SUBCATEGORIES[0].slug];
       }
 
-      if (category === CATEGORY_ENTRETERIMENTO) {
-        if (entertainmentSubcategories.length === 0) {
-          entertainmentSubcategories = [ENTERTAINMENT_SUBCATEGORIES[0].slug];
-        }
-      } else {
-        entertainmentSubcategories = [];
-      }
-
-      const imageUrl = getCell(row, 'image_url', 'imagem', 'capa').trim() || null;
-      const galleryUrls = imageUrl ? [imageUrl] : [];
+      const galleryUrls = getGalleryUrlsFromRow(row);
+      const imageUrl = galleryUrls[0] ?? null;
 
       const { data: inserted, error: insErr } = await supabase
         .from('products')
@@ -191,9 +146,9 @@ export async function POST(request: NextRequest) {
           description: description.trim(),
           price,
           type: 'digital',
-          category: category || DEFAULT_CATEGORY_SLUG,
+          category: CATEGORY_PRODUTO_DIGITAL,
           digital_subcategories: digitalSubcategories,
-          entertainment_subcategories: entertainmentSubcategories,
+          entertainment_subcategories: [],
           stock: 0,
           image_url: imageUrl,
           gallery_urls: galleryUrls,

@@ -1,0 +1,11 @@
+title,price,description,category,type,stock,shipping_fee_eur,ships_only_same_region,image_url_1,image_url_2,image_url_3,image_url_4,image_url_5
+"Exemplo — Mulher (roupa)",24.90,"Substitui texto e imagens. Slug categoria: mulher-roupa",mulher-roupa,physical,2,4.50,nao,"https://exemplo.tld/foto1.jpg",,,,
+"Exemplo — Homem (roupa)",19.00,"Slug: homem-roupa",homem-roupa,physical,1,3.00,sim,"https://exemplo.tld/foto1.jpg",,,,
+"Exemplo — Peças de estilista",89.00,"Slug: pecas-estilista-roupa-mulher",pecas-estilista-roupa-mulher,physical,1,,nao,"https://exemplo.tld/foto1.jpg",,,,
+"Exemplo — Criança",15.00,"Slug: crianca-vestuario-rapariga",crianca-vestuario-rapariga,physical,3,2.50,nao,"https://exemplo.tld/foto1.jpg",,,,
+"Exemplo — Casa (têxteis)",12.00,"Slug: casa-texteis",casa-texteis,physical,4,0,nao,"https://exemplo.tld/foto1.jpg",,,,
+"Exemplo — Eletrónica",199.00,"Slug: eletronica-telemoveis-comunicacao",eletronica-telemoveis-comunicacao,physical,1,5.00,nao,"https://exemplo.tld/foto1.jpg",,,,
+"Exemplo — Entretenimento (livros)",8.50,"Slug: entretenimento-livros",entretenimento-livros,physical,10,2.00,nao,"https://exemplo.tld/foto1.jpg",,,,
+"Exemplo — Hobbies",22.00,"Slug: hobbies-colecoes-jogos-tabuleiro",hobbies-colecoes-jogos-tabuleiro,physical,2,,sim,"https://exemplo.tld/foto1.jpg",,,,
+"Exemplo — Desporto",45.00,"Slug: desporto-fitness-corrida-yoga",desporto-fitness-corrida-yoga,physical,1,3.50,nao,"https://exemplo.tld/foto1.jpg",,,,
+"Exemplo — Reutilizado (artigo físico)",9.99,"type=reutilizados; mesmas categorias folha",homem-acessorios,reutilizados,1,2.00,nao,"https://exemplo.tld/foto1.jpg",,,,

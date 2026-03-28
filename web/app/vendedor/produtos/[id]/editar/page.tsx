@@ -6,12 +6,14 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import {
-  CATEGORIES,
   CATEGORY_ENTRETERIMENTO,
   CATEGORY_PRODUTO_DIGITAL,
   DEFAULT_CATEGORY_SLUG,
   DIGITAL_SUBCATEGORIES,
   ENTERTAINMENT_SUBCATEGORIES,
+  getCategoryLabel,
+  isPhysicalLeafCategory,
+  PHYSICAL_CATEGORY_GROUPS,
 } from '@/lib/categories';
 import type { Product, ProductType } from '@/lib/types';
 import { MAX_AD_PHOTOS, parseGalleryUrls } from '@/lib/product-gallery';
@@ -114,7 +116,7 @@ export default function EditarProdutoPage() {
       return;
     }
     if (isEntretenimento && entertainmentSubcategories.length === 0) {
-      setError('Seleciona pelo menos uma subcategoria de Entretenimento.');
+      setError('Seleciona pelo menos uma subcategoria de Entretenimento (anúncio legado) ou altera a categoria.');
       return;
     }
     setLoading(true);
@@ -248,27 +250,63 @@ export default function EditarProdutoPage() {
           </label>
           <label className="auth-label">
             Tipo *
-            <select className="auth-input" value={type} onChange={(e) => setType(e.target.value as ProductType)}>
+            <select
+              className="auth-input"
+              value={type}
+              onChange={(e) => {
+                const v = e.target.value as ProductType;
+                setType(v);
+                if (v === 'digital') {
+                  setCategory(CATEGORY_PRODUTO_DIGITAL);
+                } else if (category === CATEGORY_PRODUTO_DIGITAL) {
+                  setCategory(DEFAULT_CATEGORY_SLUG);
+                }
+              }}
+            >
               <option value="digital">Digital</option>
               <option value="physical">Físico / Artesanato</option>
               <option value="reutilizados">Reutilizado</option>
             </select>
           </label>
           <label className="auth-label">
-            Categoria
+            Categoria *
             <select
               className="auth-input"
               value={category}
               onChange={(e) => {
                 const v = e.target.value;
                 setCategory(v);
-                if (v !== CATEGORY_PRODUTO_DIGITAL) setDigitalSubcategories([]);
+                if (v === CATEGORY_PRODUTO_DIGITAL) {
+                  setType('digital');
+                  setEntertainmentSubcategories([]);
+                  return;
+                }
+                setDigitalSubcategories([]);
                 if (v !== CATEGORY_ENTRETERIMENTO) setEntertainmentSubcategories([]);
+                if (type === 'digital') setType('physical');
               }}
+              required
             >
-              {CATEGORIES.map((c) => (
-                <option key={c.slug} value={c.slug}>{c.label}</option>
+              <option value="">— Escolher —</option>
+              {PHYSICAL_CATEGORY_GROUPS.map((g) => (
+                <optgroup key={g.slug} label={g.label}>
+                  {g.leaves.map((leaf) => (
+                    <option key={leaf.slug} value={leaf.slug}>
+                      {leaf.label}
+                    </option>
+                  ))}
+                </optgroup>
               ))}
+              <optgroup label="Produto digital">
+                <option value={CATEGORY_PRODUTO_DIGITAL}>Produto digital (ficheiros para download)</option>
+              </optgroup>
+              {product.category &&
+              !isPhysicalLeafCategory(product.category) &&
+              product.category !== CATEGORY_PRODUTO_DIGITAL ? (
+                <optgroup label="Categoria atual (legado)">
+                  <option value={product.category}>{getCategoryLabel(product.category)}</option>
+                </optgroup>
+              ) : null}
             </select>
           </label>
           {isProdutoDigital && (
@@ -329,8 +367,8 @@ export default function EditarProdutoPage() {
                   placeholder="Vazio = não somar portes no pagamento; 0 = grátis"
                 />
                 <span className="perfil-hint">
-                  Se preencheres, este valor é somado ao pagamento (uma vez por linha). Comissão 6,5 % sobre preço +
-                  portes.{' '}
+                  Se preencheres, este valor é somado ao pagamento (uma vez por linha). A taxa de checkout (6% + 0,50 €)
+                  é paga pelo comprador sobre artigo + portes.{' '}
                   <a href="/vendedor/guia" target="_blank" rel="noopener noreferrer">
                     Guia do vendedor
                   </a>

@@ -1,25 +1,18 @@
 'use client';
 
 import Link from 'next/link';
-import { Suspense, useState, useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { supabase } from '@/lib/supabase';
 
-type UserType = 'comum' | 'vendedor';
-
 function RegistarForm() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [userType, setUserType] = useState<UserType>('comum');
-
-  useEffect(() => {
-    if (searchParams.get('tipo') === 'vendedor') setUserType('vendedor');
-  }, [searchParams]);
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -27,6 +20,10 @@ function RegistarForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    if (password !== confirmPassword) {
+      setError('As palavras-passe não coincidem.');
+      return;
+    }
     setLoading(true);
     const { error: err } = await supabase.auth.signUp({
       email,
@@ -34,7 +31,7 @@ function RegistarForm() {
       options: {
         data: {
           full_name: fullName.trim(),
-          user_type: userType,
+          user_type: 'vendedor',
         },
       },
     });
@@ -69,34 +66,10 @@ function RegistarForm() {
       <main className="main auth-page">
         <div className="auth-card">
           <h1>Criar conta</h1>
-          <p className="auth-subtitle">Escolhe o tipo de conta e preenche os dados.</p>
+          <p className="auth-subtitle">Cria a tua conta para comprar e vender.</p>
 
           <form onSubmit={handleSubmit} className="auth-form">
             {error && <p className="auth-error">{error}</p>}
-
-            <div className="auth-radio-group">
-              <span className="auth-label-block">Quero:</span>
-              <label className="auth-radio">
-                <input
-                  type="radio"
-                  name="userType"
-                  value="comum"
-                  checked={userType === 'comum'}
-                  onChange={() => setUserType('comum')}
-                />
-                <span>Utilizador comum (apenas comprar)</span>
-              </label>
-              <label className="auth-radio">
-                <input
-                  type="radio"
-                  name="userType"
-                  value="vendedor"
-                  checked={userType === 'vendedor'}
-                  onChange={() => setUserType('vendedor')}
-                />
-                <span>Vendedor (comprar e vender)</span>
-              </label>
-            </div>
 
             <label className="auth-label">
               Nome
@@ -134,6 +107,19 @@ function RegistarForm() {
                 autoComplete="new-password"
               />
             </label>
+            <label className="auth-label">
+              Confirmar palavra-passe
+              <input
+                type="password"
+                className="auth-input"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Repete a palavra-passe"
+                required
+                minLength={6}
+                autoComplete="new-password"
+              />
+            </label>
             <button type="submit" className="btn btn-primary auth-submit" disabled={loading}>
               {loading ? 'A criar conta...' : 'Criar conta'}
             </button>
@@ -150,15 +136,5 @@ function RegistarForm() {
 }
 
 export default function RegistarPage() {
-  return (
-    <Suspense fallback={
-      <div className="page">
-        <Header />
-        <main className="main auth-page"><p className="loading">A carregar...</p></main>
-        <Footer />
-      </div>
-    }>
-      <RegistarForm />
-    </Suspense>
-  );
+  return <RegistarForm />;
 }

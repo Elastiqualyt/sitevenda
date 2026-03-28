@@ -6,6 +6,7 @@ import { getAppOrigin } from '@/lib/app-url';
 import { getUserFromBearer } from '@/lib/supabase-route';
 import { createServiceClient } from '@/lib/supabase-service';
 import { checkoutShippingFeeEur, roundMoney2 } from '@/lib/product-shipping';
+import { buyerTotalFromBase } from '@/lib/seller-fees';
 
 export const runtime = 'nodejs';
 
@@ -80,7 +81,9 @@ export async function POST(request: NextRequest) {
       unit_price: number;
       product_subtotal: number;
       shipping_fee: number;
-      line_total: number;
+      line_total: number; // valor do vendedor (artigo + portes)
+      buyer_fee: number; // taxa cobrada ao comprador (6% + 0,50 €)
+      buyer_total: number; // line_total + buyer_fee
     };
     const lines: Line[] = [];
 
@@ -108,6 +111,7 @@ export async function POST(request: NextRequest) {
       const productSubtotal = roundMoney2(unit * qty);
       const shippingFee = checkoutShippingFeeEur(type, p.shipping_fee_eur as number | null | undefined);
       const lineTotal = roundMoney2(productSubtotal + shippingFee);
+      const buyer = buyerTotalFromBase(lineTotal);
       lines.push({
         product_id: p.id as string,
         seller_id: p.seller_id as string,
@@ -117,10 +121,12 @@ export async function POST(request: NextRequest) {
         product_subtotal: productSubtotal,
         shipping_fee: shippingFee,
         line_total: lineTotal,
+        buyer_fee: buyer.fee,
+        buyer_total: buyer.total,
       });
     }
 
-    const total = Math.round(lines.reduce((s, l) => s + l.line_total, 0) * 100) / 100;
+    const total = Math.round(lines.reduce((s, l) => s + l.buyer_total, 0) * 100) / 100;
     if (total < 0.5) {
       return NextResponse.json(
         { error: 'O total mínimo para pagamento com cartão é 0,50 €.' },
@@ -183,6 +189,7 @@ export async function POST(request: NextRequest) {
         product_subtotal_eur: l.product_subtotal,
         shipping_fee_eur: l.shipping_fee,
         line_total: l.line_total,
+        buyer_fee_eur: l.buyer_fee,
       }))
     );
 
@@ -239,6 +246,18 @@ export async function POST(request: NextRequest) {
                 unit_amount: Math.round(l.shipping_fee * 100),
                 product_data: {
                   name: `Portes: ${l.title.slice(0, 100)}`,
+                },
+              },
+              quantity: 1,
+            });
+          }
+          if (l.buyer_fee > 0) {
+            stripeItems.push({
+              price_data: {
+                currency: 'eur',
+                unit_amount: Math.round(l.buyer_fee * 100),
+                product_data: {
+                  name: `Taxa de serviço (6% + 0,50 €): ${l.title.slice(0, 90)}`,
                 },
               },
               quantity: 1,

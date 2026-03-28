@@ -1,23 +1,20 @@
 'use client';
 
 import {
-  SELLER_LISTING_FEE_EUR,
-  SELLER_LISTING_VALIDITY_MONTHS,
-  SELLER_TRANSACTION_FEE_PERCENT,
+  BUYER_TRANSACTION_FEE_FIXED_EUR,
+  BUYER_TRANSACTION_FEE_PERCENT,
   formatEurPt,
 } from '@/lib/seller-fees';
 
-/** Política de taxas exibida ao publicar ou renovar anúncios. */
+/** Política de taxas (checkout) em formulários de anúncio. */
 export function SellerListingPolicy() {
-  const listingFee = formatEurPt(SELLER_LISTING_FEE_EUR);
-
   return (
     <section className="seller-policy" aria-labelledby="seller-policy-heading">
       <h2 id="seller-policy-heading" className="seller-policy__title">
         Política de utilização — taxas para vendedores
       </h2>
       <p className="seller-policy__intro">
-        Ao publicares ou renovares um anúncio nesta loja (EUR), aplicam-se as regras indicativas seguintes:
+        A taxa de serviço no checkout é paga pelo comprador (ver tabela abaixo).
       </p>
       <div className="seller-policy__table-wrap">
         <table className="seller-policy__table">
@@ -30,24 +27,21 @@ export function SellerListingPolicy() {
           </thead>
           <tbody>
             <tr>
-              <td>Taxa de listagem</td>
-              <td>Publicar ou renovar um anúncio</td>
+              <td>Taxa no checkout (comprador)</td>
+              <td>Cobrada ao comprador no pagamento</td>
               <td>
-                Cerca de <strong>{listingFee}</strong> por listagem; válida{' '}
-                <strong>{SELLER_LISTING_VALIDITY_MONTHS} meses</strong> ou até vender (o que ocorrer primeiro).
-              </td>
-            </tr>
-            <tr>
-              <td>Taxa de transação</td>
-              <td>Comissão sobre a venda</td>
-              <td>
-                <strong>{SELLER_TRANSACTION_FEE_PERCENT} %</strong> sobre o preço da venda,{' '}
-                <strong>incluindo os portes</strong> que definires.
+                <strong>{BUYER_TRANSACTION_FEE_PERCENT} % + {formatEurPt(BUYER_TRANSACTION_FEE_FIXED_EUR)}</strong>{' '}
+                sobre o valor do artigo (e portes, quando aplicável). Esta taxa é paga pelo comprador e financia o
+                serviço da plataforma.
               </td>
             </tr>
           </tbody>
         </table>
       </div>
+      <p className="seller-policy__details">
+        O vendedor recebe no saldo o valor declarado do anúncio (e portes definidos), sem desconto desta taxa de
+        checkout.
+      </p>
     </section>
   );
 }

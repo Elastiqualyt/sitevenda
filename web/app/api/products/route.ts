@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
-import { normalizeProductType } from '@/lib/categories';
+import {
+  CATEGORY_ENTRETERIMENTO,
+  CATEGORY_PRODUTO_DIGITAL,
+  DEFAULT_CATEGORY_SLUG,
+  isAllowedProductCategorySlug,
+  isMarketplaceGroupSlug,
+  normalizeProductType,
+} from '@/lib/categories';
 import { escapeIlikePattern } from '@/lib/ilike';
 
 /**
@@ -52,12 +59,18 @@ export async function GET(request: NextRequest) {
       query = query.eq('type', tipo);
     }
     if (categoria) {
-      query = query.eq('category', categoria);
+      if (categoria === CATEGORY_PRODUTO_DIGITAL) {
+        query = query.eq('category', CATEGORY_PRODUTO_DIGITAL);
+      } else if (isMarketplaceGroupSlug(categoria)) {
+        query = query.or(`category.eq.${categoria},category.like.${categoria}-%`);
+      } else {
+        query = query.eq('category', categoria);
+      }
     }
     if (subcategorias.length > 0) {
-      if (categoria === 'produto-digital') {
+      if (categoria === CATEGORY_PRODUTO_DIGITAL) {
         query = query.overlaps('digital_subcategories', subcategorias);
-      } else if (categoria === 'entretenimento') {
+      } else if (categoria === CATEGORY_ENTRETERIMENTO) {
         query = query.overlaps('entertainment_subcategories', subcategorias);
       }
     }
@@ -121,6 +134,28 @@ export async function POST(request: NextRequest) {
       : [];
 
     const typeNorm = typeof type === 'string' ? normalizeProductType(type) || type : type;
+    const catRaw = typeof category === 'string' && category.trim() ? category.trim() : '';
+    let finalCategory = catRaw || DEFAULT_CATEGORY_SLUG;
+    let finalType = typeNorm;
+
+    if (finalCategory === CATEGORY_PRODUTO_DIGITAL) {
+      finalType = 'digital';
+      if (subcatsDigital.length === 0) {
+        return NextResponse.json(
+          { error: 'Produto digital: indica pelo menos uma subcategoria em digital_subcategories.' },
+          { status: 400 }
+        );
+      }
+    } else if (finalType === 'digital') {
+      return NextResponse.json(
+        { error: 'Tipo digital: category deve ser produto-digital.' },
+        { status: 400 }
+      );
+    }
+
+    if (!isAllowedProductCategorySlug(finalCategory)) {
+      return NextResponse.json({ error: 'Categoria inválida.' }, { status: 400 });
+    }
 
     const galleryList = Array.isArray(gallery_urls)
       ? gallery_urls.filter((x: unknown) => typeof x === 'string')
@@ -132,10 +167,11 @@ export async function POST(request: NextRequest) {
         title,
         description: description ?? '',
         price: Number(price),
-        type: typeNorm,
-        category: category ?? 'lazer',
-        digital_subcategories: subcatsDigital,
-        entertainment_subcategories: subcatsEntertainment,
+        type: finalType,
+        category: finalCategory,
+        digital_subcategories: finalCategory === CATEGORY_PRODUTO_DIGITAL ? subcatsDigital : [],
+        entertainment_subcategories:
+          finalCategory === CATEGORY_ENTRETERIMENTO ? subcatsEntertainment : [],
         image_url: image_url ?? null,
         gallery_urls: galleryList.length ? galleryList : [],
         file_url: file_url ?? null,

@@ -12,6 +12,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../../App';
 import { fetchProducts } from '../services/products';
 import type { Product } from '../types/product';
+import { buyerPriceFromSellerPrice } from '../lib/fees';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Products'>;
 
@@ -40,7 +41,9 @@ export default function ProductsScreen({ navigation, route }: Props) {
     return (
       <View style={styles.centered}>
         <Text style={styles.error}>{error}</Text>
-        <Text style={styles.hint}>Confirma que a API está no ar (web na Vercel).</Text>
+        <Text style={styles.hint}>
+          Confirma que o Next.js está a correr (dev) ou que a API em terraplace.pt responde.
+        </Text>
       </View>
     );
   }
@@ -66,7 +69,7 @@ export default function ProductsScreen({ navigation, route }: Props) {
               </View>
             )}
             <Text style={styles.cardTitle} numberOfLines={2}>{item.title}</Text>
-            <Text style={styles.cardPrice}>{Number(item.price).toFixed(2)} €</Text>
+            <Text style={styles.cardPrice}>{buyerPriceFromSellerPrice(Number(item.price)).toFixed(2)} €</Text>
           </TouchableOpacity>
         )}
         ListEmptyComponent={

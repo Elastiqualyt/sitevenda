@@ -23,6 +23,12 @@ export interface Product {
   ships_only_same_region?: boolean;
   created_at: string;
   updated_at: string;
+  /** Janela administrativa de listagem (renovação automática de datas; sem cobrança ao vendedor). */
+  listing_fee_valid_until?: string | null;
+  /** Se true, não há cobranças de renovação (ex.: esgotado). */
+  listing_fee_paused?: boolean;
+  /** Se true, o anúncio não aparece na vitrine (o vendedor continua a vê-lo na gestão). */
+  hidden?: boolean;
 }
 
 export interface Conversation {
@@ -46,7 +52,7 @@ export interface Message {
 export interface BalanceTransaction {
   id: string;
   user_id: string;
-  type: 'deposit' | 'withdrawal' | 'sale' | 'purchase';
+  type: 'deposit' | 'withdrawal' | 'sale' | 'purchase' | 'listing_fee';
   amount: number;
   status: string;
   reference: string | null;

@@ -92,8 +92,17 @@ export default function VendedorFinancasPage() {
       case 'withdrawal': return 'Saque';
       case 'sale': return 'Venda';
       case 'purchase': return 'Compra';
+      case 'listing_fee': return 'Registo antigo';
       default: return type;
     }
+  };
+
+  const formatTxAmount = (type: string, amount: number) => {
+    const n = Number(amount);
+    if (type === 'listing_fee' || type === 'withdrawal') {
+      return `−${n.toFixed(2)} €`;
+    }
+    return `${n.toFixed(2)} €`;
   };
 
   return (
@@ -169,7 +178,7 @@ export default function VendedorFinancasPage() {
                 <tr key={tx.id}>
                   <td>{new Date(tx.created_at).toLocaleString('pt-PT')}</td>
                   <td>{balanceLabel(tx.type)}</td>
-                  <td>{Number(tx.amount).toFixed(2)} €</td>
+                  <td>{formatTxAmount(tx.type, tx.amount)}</td>
                   <td>{tx.status}</td>
                 </tr>
               ))}

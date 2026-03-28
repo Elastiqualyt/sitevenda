@@ -1,4 +1,9 @@
 import Link from 'next/link';
+import {
+  BUYER_TRANSACTION_FEE_FIXED_EUR,
+  BUYER_TRANSACTION_FEE_PERCENT,
+  formatEurPt,
+} from '@/lib/seller-fees';
 
 export const metadata = {
   title: 'Guia do vendedor — Portes, região e taxas',
@@ -9,7 +14,7 @@ export default function VendedorGuiaPage() {
     <div className="vendedor-page vendedor-guia">
       <h1>Guia do vendedor</h1>
       <p className="vendedor-guia__lead">
-        Portes opcionais, envio só na tua região e taxas da plataforma (listagem e comissão sobre vendas).
+        Portes opcionais, envio só na tua região e taxa de serviço no checkout (paga pelo comprador).
       </p>
 
       <section className="vendedor-guia__section">
@@ -45,6 +50,10 @@ export default function VendedorGuiaPage() {
 
       <section className="vendedor-guia__section">
         <h2>3. Taxas cobradas</h2>
+        <p>
+          A plataforma cobra ao <strong>comprador</strong>, no pagamento, uma taxa de serviço sobre cada linha do
+          pedido.
+        </p>
         <div className="seller-policy__table-wrap">
           <table className="seller-policy__table">
             <thead>
@@ -56,31 +65,17 @@ export default function VendedorGuiaPage() {
             </thead>
             <tbody>
               <tr>
-                <td>Taxa de listagem</td>
-                <td>Publicar ou renovar um anúncio</td>
+                <td>Taxa no checkout (comprador)</td>
+                <td>Taxa da plataforma no pagamento</td>
                 <td>
-                  Cerca de <strong>0,17 €</strong> por listagem; válida <strong>4 meses</strong> ou até vender (o que
-                  ocorrer primeiro).
-                </td>
-              </tr>
-              <tr>
-                <td>Comissão sobre a venda</td>
-                <td>Comissão sobre o valor pago</td>
-                <td>
-                  <strong>6,5 %</strong> sobre o preço da venda, <strong>incluindo os portes</strong> que definires no
-                  anúncio (quando entram no pagamento).
+                  <strong>{BUYER_TRANSACTION_FEE_PERCENT} % + {formatEurPt(BUYER_TRANSACTION_FEE_FIXED_EUR)}</strong>{' '}
+                  sobre o valor do artigo (e portes quando aplicável), paga pelo comprador.
                 </td>
               </tr>
             </tbody>
           </table>
         </div>
-        <p>
-          A <strong>comissão de 6,5 %</strong> é aplicada ao <strong>creditar o teu saldo</strong> após o pagamento
-          confirmado: recebes o valor <strong>líquido</strong>; em Finanças vês a referência com bruto e comissão.
-        </p>
-        <p className="vendedor-guia__note">
-          A taxa de listagem está na política; a cobrança automática desta taxa pode ser evoluída na plataforma.
-        </p>
+        <p>Recebes no teu saldo o valor declarado no anúncio (e portes definidos), sem desconto desta taxa.</p>
       </section>
 
       <section className="vendedor-guia__section">

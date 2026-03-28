@@ -17,6 +17,9 @@ export default function VendedorProdutosPage() {
   const { user } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState('');
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [togglingHiddenId, setTogglingHiddenId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -36,8 +39,35 @@ export default function VendedorProdutosPage() {
 
   const handleDelete = async (id: string) => {
     if (!confirm('Apagar este produto?')) return;
-    await supabase.from('products').delete().eq('id', id);
+    setMessage('');
+    setDeletingId(id);
+    const { error } = await supabase.from('products').delete().eq('id', id);
+    setDeletingId(null);
+    if (error) {
+      const isFk = (error as { code?: string }).code === '23503';
+      setMessage(
+        isFk
+          ? 'Não foi possível apagar este produto porque já está associado a pedidos/compras. Usa «Ocultar» para o tirar da vitrine.'
+          : `Erro ao apagar produto: ${error.message}`
+      );
+      return;
+    }
     setProducts((p) => p.filter((x) => x.id !== id));
+    setMessage('Produto apagado.');
+  };
+
+  const handleToggleHidden = async (p: Product) => {
+    setMessage('');
+    const next = !p.hidden;
+    setTogglingHiddenId(p.id);
+    const { error } = await supabase.from('products').update({ hidden: next }).eq('id', p.id);
+    setTogglingHiddenId(null);
+    if (error) {
+      setMessage(`Erro ao atualizar anúncio: ${error.message}`);
+      return;
+    }
+    setProducts((list) => list.map((x) => (x.id === p.id ? { ...x, hidden: next } : x)));
+    setMessage(next ? 'Anúncio oculto na vitrine.' : 'Anúncio visível na vitrine.');
   };
 
   if (loading) return <p className="loading">A carregar...</p>;
@@ -48,7 +78,7 @@ export default function VendedorProdutosPage() {
         <h1>Meus produtos</h1>
         <div className="vendedor-page__actions">
           <Link href="/vendedor/produtos/importar" className="btn btn-secondary">
-            Importar CSV (Drive)
+            Importar CSV
           </Link>
           <Link href="/vendedor/produtos/novo" className="btn btn-primary">
             + Novo produto
@@ -56,8 +86,9 @@ export default function VendedorProdutosPage() {
         </div>
       </div>
       <p className="vendedor-taxas-hint">
-        Taxas de listagem e comissão na venda: <Link href="/vender">política para vendedores</Link>.
+        Taxa de serviço no checkout (comprador): <Link href="/vender">política para vendedores</Link>.
       </p>
+      {message ? <p className={message.startsWith('Erro') || message.startsWith('Não foi') ? 'auth-error' : 'auth-success'}>{message}</p> : null}
       {products.length === 0 ? (
         <p className="empty">Ainda não tens produtos. <Link href="/vendedor/produtos/novo">Criar o primeiro</Link>.</p>
       ) : (
@@ -66,7 +97,7 @@ export default function VendedorProdutosPage() {
             <thead>
               <tr>
                 <th>Imagem</th>
-                <th>Título</th>
+                <th>Título / estado</th>
                 <th>Preço</th>
                 <th>Stock</th>
                 <th>Categoria</th>
@@ -83,7 +114,17 @@ export default function VendedorProdutosPage() {
                       <span className="vendedor-table__placeholder">—</span>
                     )}
                   </td>
-                  <td>{p.title}</td>
+                  <td>
+                    {p.title}
+                    {p.hidden ? (
+                      <span
+                        className="vendedor-table__subcats"
+                        style={{ display: 'block', marginTop: '0.35rem', color: 'var(--muted, #666)' }}
+                      >
+                        Oculto (fora da vitrine)
+                      </span>
+                    ) : null}
+                  </td>
                   <td>{Number(p.price).toFixed(2)} €</td>
                   <td>{p.stock ?? 0}</td>
                   <td>
@@ -106,7 +147,27 @@ export default function VendedorProdutosPage() {
                     {' · '}
                     <Link href={`/vendedor/produtos/${p.id}/editar`} className="vendedor-link">Editar</Link>
                     {' · '}
-                    <button type="button" className="vendedor-link vendedor-link--danger" onClick={() => handleDelete(p.id)}>Apagar</button>
+                    <button
+                      type="button"
+                      className="vendedor-link"
+                      disabled={togglingHiddenId === p.id || deletingId === p.id}
+                      onClick={() => handleToggleHidden(p)}
+                    >
+                      {togglingHiddenId === p.id
+                        ? 'A atualizar…'
+                        : p.hidden
+                          ? 'Mostrar'
+                          : 'Ocultar'}
+                    </button>
+                    {' · '}
+                    <button
+                      type="button"
+                      className="vendedor-link vendedor-link--danger"
+                      disabled={deletingId === p.id || togglingHiddenId === p.id}
+                      onClick={() => handleDelete(p.id)}
+                    >
+                      {deletingId === p.id ? 'A apagar…' : 'Apagar'}
+                    </button>
                   </td>
                 </tr>
               ))}

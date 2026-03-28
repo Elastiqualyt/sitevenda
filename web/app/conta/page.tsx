@@ -26,9 +26,9 @@ export default function ContaOverviewPage() {
           </Link>
         )}
         <Link href="/conta/compras" className="conta-dash-card">
-          <h2>Compras</h2>
-          <p className="conta-dash-card__desc">Histórico de pedidos pagos (Stripe)</p>
-          <span className="conta-dash-card__cta">Ver compras →</span>
+          <h2>Os meus pedidos</h2>
+          <p className="conta-dash-card__desc">Comprados e vendidos, com filtros por estado</p>
+          <span className="conta-dash-card__cta">Ver pedidos →</span>
         </Link>
         <Link href="/conta/digitais" className="conta-dash-card">
           <h2>Ficheiros digitais</h2>

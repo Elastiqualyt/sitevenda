@@ -6,12 +6,10 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import {
-  CATEGORIES,
-  CATEGORY_ENTRETERIMENTO,
   CATEGORY_PRODUTO_DIGITAL,
   DEFAULT_CATEGORY_SLUG,
   DIGITAL_SUBCATEGORIES,
-  ENTERTAINMENT_SUBCATEGORIES,
+  PHYSICAL_CATEGORY_GROUPS,
 } from '@/lib/categories';
 import type { ProductType } from '@/lib/types';
 import { MAX_AD_PHOTOS } from '@/lib/product-gallery';
@@ -39,7 +37,6 @@ export default function NovoProdutoPage() {
   const [type, setType] = useState<ProductType>('physical');
   const [category, setCategory] = useState('');
   const [digitalSubcategories, setDigitalSubcategories] = useState<string[]>([]);
-  const [entertainmentSubcategories, setEntertainmentSubcategories] = useState<string[]>([]);
   const [stock, setStock] = useState('0');
   /** URL alternativa se não carregares ficheiros (1 imagem) */
   const [imageUrl, setImageUrl] = useState('');
@@ -55,16 +52,9 @@ export default function NovoProdutoPage() {
   const [shipsOnlySameRegion, setShipsOnlySameRegion] = useState(false);
 
   const isProdutoDigital = category === CATEGORY_PRODUTO_DIGITAL;
-  const isEntretenimento = category === CATEGORY_ENTRETERIMENTO;
 
   const toggleDigitalSubcategory = (slug: string) => {
     setDigitalSubcategories((prev) =>
-      prev.includes(slug) ? prev.filter((s) => s !== slug) : [...prev, slug]
-    );
-  };
-
-  const toggleEntertainmentSubcategory = (slug: string) => {
-    setEntertainmentSubcategories((prev) =>
       prev.includes(slug) ? prev.filter((s) => s !== slug) : [...prev, slug]
     );
   };
@@ -78,12 +68,12 @@ export default function NovoProdutoPage() {
       setError('Preço inválido.');
       return;
     }
-    if (isProdutoDigital && digitalSubcategories.length === 0) {
-      setError('Seleciona pelo menos uma subcategoria de Produto Digital.');
+    if (!category.trim()) {
+      setError('Escolhe uma categoria.');
       return;
     }
-    if (isEntretenimento && entertainmentSubcategories.length === 0) {
-      setError('Seleciona pelo menos uma subcategoria de Entretenimento.');
+    if (isProdutoDigital && digitalSubcategories.length === 0) {
+      setError('Seleciona pelo menos uma subcategoria de Produto Digital.');
       return;
     }
     setLoading(true);
@@ -165,7 +155,7 @@ export default function NovoProdutoPage() {
         type: isProdutoDigital ? 'digital' : type,
         category: category || DEFAULT_CATEGORY_SLUG,
         digital_subcategories: isProdutoDigital ? digitalSubcategories : [],
-        entertainment_subcategories: isEntretenimento ? entertainmentSubcategories : [],
+        entertainment_subcategories: [],
         stock: isProdutoDigital ? 0 : Math.max(0, parseInt(stock, 10) || 0),
         image_url: finalImageUrl,
         gallery_urls: galleryUrlsList,
@@ -227,27 +217,54 @@ export default function NovoProdutoPage() {
           </label>
           <label className="auth-label">
             Tipo *
-            <select className="auth-input" value={type} onChange={(e) => setType(e.target.value as ProductType)}>
+            <select
+              className="auth-input"
+              value={type}
+              onChange={(e) => {
+                const v = e.target.value as ProductType;
+                setType(v);
+                if (v === 'digital') {
+                  setCategory(CATEGORY_PRODUTO_DIGITAL);
+                } else if (category === CATEGORY_PRODUTO_DIGITAL) {
+                  setCategory(DEFAULT_CATEGORY_SLUG);
+                }
+              }}
+            >
               <option value="digital">Digital</option>
               <option value="physical">Físico / Artesanato</option>
               <option value="reutilizados">Reutilizado</option>
             </select>
           </label>
           <label className="auth-label">
-            Categoria
+            Categoria *
             <select
               className="auth-input"
               value={category}
               onChange={(e) => {
                 const v = e.target.value;
                 setCategory(v);
-                if (v !== CATEGORY_PRODUTO_DIGITAL) setDigitalSubcategories([]);
-                if (v !== CATEGORY_ENTRETERIMENTO) setEntertainmentSubcategories([]);
+                if (v === CATEGORY_PRODUTO_DIGITAL) {
+                  setType('digital');
+                  return;
+                }
+                setDigitalSubcategories([]);
+                if (type === 'digital') setType('physical');
               }}
+              required
             >
-              {CATEGORIES.map((c) => (
-                <option key={c.slug} value={c.slug}>{c.label}</option>
+              <option value="">— Escolher —</option>
+              {PHYSICAL_CATEGORY_GROUPS.map((g) => (
+                <optgroup key={g.slug} label={g.label}>
+                  {g.leaves.map((leaf) => (
+                    <option key={leaf.slug} value={leaf.slug}>
+                      {leaf.label}
+                    </option>
+                  ))}
+                </optgroup>
               ))}
+              <optgroup label="Produto digital">
+                <option value={CATEGORY_PRODUTO_DIGITAL}>Produto digital (ficheiros para download)</option>
+              </optgroup>
             </select>
           </label>
           {isProdutoDigital && (
@@ -260,23 +277,6 @@ export default function NovoProdutoPage() {
                       type="checkbox"
                       checked={digitalSubcategories.includes(c.slug)}
                       onChange={() => toggleDigitalSubcategory(c.slug)}
-                    />
-                    <span>{c.label}</span>
-                  </label>
-                ))}
-              </span>
-            </label>
-          )}
-          {isEntretenimento && (
-            <label className="auth-label">
-              Subcategorias (Entretenimento) *
-              <span className="digital-subcategories">
-                {ENTERTAINMENT_SUBCATEGORIES.map((c) => (
-                  <label key={c.slug} className="digital-subcategories__item">
-                    <input
-                      type="checkbox"
-                      checked={entertainmentSubcategories.includes(c.slug)}
-                      onChange={() => toggleEntertainmentSubcategory(c.slug)}
                     />
                     <span>{c.label}</span>
                   </label>
@@ -303,7 +303,7 @@ export default function NovoProdutoPage() {
                 />
                 <span className="perfil-hint">
                   Se preencheres, este valor é <strong>somado ao pagamento</strong> (uma vez por linha de carrinho). A
-                  comissão da plataforma (6,5 %) incide sobre preço + portes. Vê o{' '}
+                  taxa no checkout é paga pelo comprador (6% + 0,50 € sobre o valor do artigo e portes). Vê o{' '}
                   <a href="/vendedor/guia" target="_blank" rel="noopener noreferrer">
                     guia do vendedor
                   </a>

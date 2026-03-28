@@ -9,6 +9,7 @@ import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { useMarketplaceLists } from '@/lib/marketplace-lists-context';
 import { checkoutShippingFeeEur, roundMoney2 } from '@/lib/product-shipping';
+import { buyerTotalFromBase } from '@/lib/seller-fees';
 
 interface Product {
   id: string;
@@ -80,11 +81,20 @@ function CarrinhoContent() {
         if (!p || qty < 1) return null;
         const sub = roundMoney2(Number(p.price) * qty);
         const ship = checkoutShippingFeeEur(p.type, p.shipping_fee_eur);
-        const line = roundMoney2(sub + ship);
-        return { product: p, qty, line, sub, ship };
+        const base = roundMoney2(sub + ship);
+        const buyer = buyerTotalFromBase(base);
+        return { product: p, qty, line: buyer.total, sub, ship, buyerFee: buyer.fee, base };
       })
       .filter(
-        (x): x is { product: Product; qty: number; line: number; sub: number; ship: number } => x !== null
+        (x): x is {
+          product: Product;
+          qty: number;
+          line: number;
+          sub: number;
+          ship: number;
+          buyerFee: number;
+          base: number;
+        } => x !== null
       );
   }, [cartIds, byId, cartByProductId]);
 
@@ -154,7 +164,7 @@ function CarrinhoContent() {
         ) : (
           <>
             <ul className="cart-list">
-              {lines.map(({ product: p, qty, line, sub, ship }) => (
+              {lines.map(({ product: p, qty, line, sub, ship, buyerFee }) => (
                 <li key={p.id} className="cart-row">
                   <Link href={`/produtos/${p.id}`} className="cart-row__img">
                     {p.image_url ? (
@@ -172,6 +182,7 @@ function CarrinhoContent() {
                       {ship > 0 ? (
                         <span className="cart-row__ship"> + {ship.toFixed(2)} € portes</span>
                       ) : null}
+                      <span className="cart-row__ship"> + {buyerFee.toFixed(2)} € taxa comprador</span>
                     </p>
                   </div>
                   <div className="cart-row__qty">
@@ -204,7 +215,7 @@ function CarrinhoContent() {
               ))}
             </ul>
             <div className="cart-total">
-              <span>Total</span>
+              <span>Total (inclui taxa comprador 6% + 0,50 € por linha)</span>
               <strong>{total.toFixed(2)} €</strong>
             </div>
 

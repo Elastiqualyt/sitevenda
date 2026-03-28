@@ -6,7 +6,7 @@ import { SITE_NAME } from '@/lib/site-brand';
 
 export const metadata: Metadata = {
   title: 'Política para vendedores',
-  description: `Taxas de listagem e comissão sobre vendas no ${SITE_NAME}. Informação pública para compradores e vendedores.`,
+  description: `Taxa de checkout ao comprador no ${SITE_NAME}. Informação pública para compradores e vendedores.`,
 };
 
 export default function VenderPoliticaPage() {

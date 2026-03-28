@@ -1,0 +1,15 @@
+# Consistência entre editores (evita mistura de tabs/indentação em CSS/TS).
+root = true
+
+[*]
+charset = utf-8
+insert_final_newline = true
+indent_style = space
+indent_size = 2
+trim_trailing_whitespace = true
+
+[*.{css,scss}]
+indent_size = 2
+
+[*.{md,mdx}]
+trim_trailing_whitespace = false

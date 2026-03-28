@@ -15,6 +15,7 @@ import {
   formatEntertainmentSubcategoriesList,
   getCategoryLabel,
 } from '@/lib/categories';
+import { buyerTotalFromBase } from '@/lib/seller-fees';
 
 interface ProductRow {
   id: string;
@@ -100,15 +101,21 @@ export default function LojaPublicPage() {
       <main className="main loja-page">
         <Link href="/produtos">← Voltar aos produtos</Link>
         <header className="loja-header">
-          <div className="loja-header__avatar" aria-hidden>
+          <Link
+            href={`/perfil/${sellerId}`}
+            className="loja-header__avatar"
+            aria-label={`Ver perfil público de ${name}`}
+          >
             {seller.avatar_url ? (
-              <img src={seller.avatar_url} alt="" />
+              <img src={seller.avatar_url} alt={`Foto de ${name}`} />
             ) : (
               <span className="loja-header__avatar-placeholder">{name.slice(0, 1).toUpperCase()}</span>
             )}
-          </div>
+          </Link>
           <div>
-            <h1 className="loja-header__title">{name}</h1>
+            <h1 className="loja-header__title">
+              <Link href={`/perfil/${sellerId}`}>{name}</Link>
+            </h1>
             {hasStats ? (
               <p className="loja-header__rating">
                 <StarRating value={avgRating} />
@@ -145,7 +152,7 @@ export default function LojaPublicPage() {
                     </span>
                   </p>
                 ) : null}
-                <p className="product-price">{Number(p.price).toFixed(2)} €</p>
+                <p className="product-price">{buyerTotalFromBase(Number(p.price)).total.toFixed(2)} €</p>
                 <span className="product-type">{getCategoryLabel(p.category) || p.category || '—'}</span>
                 {p.category === CATEGORY_PRODUTO_DIGITAL && p.digital_subcategories?.length ? (
                   <span className="product-type product-type--digital-sub">

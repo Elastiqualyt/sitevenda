@@ -12,11 +12,14 @@ supabase/.temp/
 # Next
 web/.next/
 web/out/
+*.tsbuildinfo
 
 # React Native
 app/build/
 app/android/app/build/
+app/android/.gradle/
 app/ios/build/
+app/ios/Pods/
 *.orig.*
 *.jks
 *.p8
@@ -26,7 +29,10 @@ app/ios/build/
 
 # IDE
 .idea/
-.vscode/
+# Partilhar definições do workspace (CSS, ESLint); ignorar o resto de .vscode/
+**/.vscode/*
+!**/.vscode/settings.json
+!**/.vscode/extensions.json
 *.swp
 *.swo
 

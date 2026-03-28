@@ -4,37 +4,36 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { Suspense, useState, useRef, useEffect, useCallback } from 'react';
-import { CATEGORIES, getCategoryLabel } from '@/lib/categories';
+import {
+  CATEGORY_PRODUTO_DIGITAL,
+  DIGITAL_SUBCATEGORIES,
+  getCategoryLabel,
+  PHYSICAL_CATEGORY_GROUPS,
+} from '@/lib/categories';
 import { useAuth } from '@/lib/auth-context';
 import { useMarketplaceLists } from '@/lib/marketplace-lists-context';
 import { supabase } from '@/lib/supabase';
 import { SITE_NAME } from '@/lib/site-brand';
 
-const SECONDARY_LINKS = [
-  { href: '/produtos?categoria=lazer', label: 'Presentes', icon: '🎁' },
-  { href: '/produtos', label: 'Destaques' },
-  { href: '/produtos?categoria=moveis-casa-e-jardim', label: 'Favoritos para a casa' },
-  { href: '/produtos?categoria=moda', label: 'Achados de moda' },
-  { href: '/produtos?tipo=reutilizados', label: 'Vintage' },
-  { href: '/produtos', label: 'Lista de presentes' },
-  { href: '/produtos', label: 'Cartões oferta' },
-];
-
 type SuggestProduct = { id: string; title: string; category: string };
+type SuggestMember = { id: string; full_name: string | null; avatar_url: string | null };
+type SearchScope = 'products' | 'members';
 
 function HeaderUrlSync({
   onSync,
 }: {
-  onSync: (q: string, categoria: string) => void;
+  onSync: (q: string, categoria: string, scope: SearchScope) => void;
 }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
   useEffect(() => {
     if (pathname === '/produtos') {
-      onSync(searchParams.get('q') ?? '', searchParams.get('categoria') ?? '');
+      onSync(searchParams.get('q') ?? '', searchParams.get('categoria') ?? '', 'products');
+    } else if (pathname === '/membros') {
+      onSync(searchParams.get('q') ?? '', '', 'members');
     } else if (pathname === '/') {
-      onSync('', '');
+      onSync('', '', 'products');
     }
   }, [pathname, searchParams, onSync]);
 
@@ -49,18 +48,19 @@ export default function Header() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchCategory, setSearchCategory] = useState('');
   const [suggestions, setSuggestions] = useState<SuggestProduct[]>([]);
+  const [memberSuggestions, setMemberSuggestions] = useState<SuggestMember[]>([]);
+  const [searchScope, setSearchScope] = useState<SearchScope>('products');
   const [suggestOpen, setSuggestOpen] = useState(false);
   const [suggestLoading, setSuggestLoading] = useState(false);
-  const [categoriesOpen, setCategoriesOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const categoriesRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const searchWrapRef = useRef<HTMLDivElement>(null);
   const suggestAbortRef = useRef<AbortController | null>(null);
 
-  const syncFromUrl = useCallback((q: string, categoria: string) => {
+  const syncFromUrl = useCallback((q: string, categoria: string, scope: SearchScope) => {
     setSearchQuery(q);
     setSearchCategory(categoria);
+    setSearchScope(scope);
   }, []);
 
   useEffect(() => {
@@ -72,18 +72,6 @@ export default function Header() {
     if (userMenuOpen) document.addEventListener('click', handleClickOutside);
     return () => document.removeEventListener('click', handleClickOutside);
   }, [userMenuOpen]);
-
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (categoriesRef.current && !categoriesRef.current.contains(e.target as Node)) {
-        setCategoriesOpen(false);
-      }
-    };
-    if (categoriesOpen) {
-      document.addEventListener('click', handleClickOutside);
-    }
-    return () => document.removeEventListener('click', handleClickOutside);
-  }, [categoriesOpen]);
 
   useEffect(() => {
     if (!suggestOpen) return;
@@ -137,6 +125,7 @@ export default function Header() {
     const q = searchQuery.trim();
     if (q.length < 2) {
       setSuggestions([]);
+      setMemberSuggestions([]);
       setSuggestOpen(false);
       suggestAbortRef.current?.abort();
       return;
@@ -147,6 +136,34 @@ export default function Header() {
       const ac = new AbortController();
       suggestAbortRef.current = ac;
       setSuggestLoading(true);
+
+      if (searchScope === 'members') {
+        void fetch(`/api/profiles/search?${new URLSearchParams({ q, limit: '10' })}`, { signal: ac.signal })
+          .then((r) => r.json())
+          .then((data: unknown) => {
+            if (Array.isArray(data)) {
+              setMemberSuggestions(
+                data.slice(0, 10).map((row: SuggestMember) => ({
+                  id: row.id,
+                  full_name: row.full_name,
+                  avatar_url: row.avatar_url,
+                }))
+              );
+              setSuggestions([]);
+              setSuggestOpen(true);
+            } else {
+              setMemberSuggestions([]);
+            }
+          })
+          .catch(() => {
+            if (!ac.signal.aborted) setMemberSuggestions([]);
+          })
+          .finally(() => {
+            if (!ac.signal.aborted) setSuggestLoading(false);
+          });
+        return;
+      }
+
       const params = new URLSearchParams({ q, limit: '10' });
       if (searchCategory) params.set('categoria', searchCategory);
       void fetch(`/api/products?${params}`, { signal: ac.signal })
@@ -160,6 +177,7 @@ export default function Header() {
                 category: row.category,
               }))
             );
+            setMemberSuggestions([]);
             setSuggestOpen(true);
           } else {
             setSuggestions([]);
@@ -177,12 +195,17 @@ export default function Header() {
       window.clearTimeout(t);
       suggestAbortRef.current?.abort();
     };
-  }, [searchQuery, searchCategory]);
+  }, [searchQuery, searchCategory, searchScope]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    const params = new URLSearchParams();
     const q = searchQuery.trim();
+    if (searchScope === 'members') {
+      router.push(q.length >= 2 ? `/membros?q=${encodeURIComponent(q)}` : '/membros');
+      setSuggestOpen(false);
+      return;
+    }
+    const params = new URLSearchParams();
     if (q) params.set('q', q);
     if (searchCategory) params.set('categoria', searchCategory);
     const qs = params.toString();
@@ -199,68 +222,58 @@ export default function Header() {
         <div className="site-header__left">
           <Link href="/" className="site-header__logo" title={SITE_NAME}>
             <Image
-              src="/images/terraplace-multi.png"
+              src="/images/TerraPlace_text.png"
               alt={SITE_NAME}
-              width={300}
-              height={100}
+              width={230}
+              height={60}
               className="site-header__logo-img"
               priority
             />
           </Link>
-          <div className="site-header__categories-wrap" ref={categoriesRef}>
-            <button
-              type="button"
-              className="site-header__categories-btn"
-              aria-haspopup="true"
-              aria-expanded={categoriesOpen}
-              onClick={(e) => {
-                e.stopPropagation();
-                setCategoriesOpen((v) => !v);
-              }}
-            >
-              <span className="site-header__categories-icon" aria-hidden="true">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" fill="currentColor">
-                  <rect x="2" y="3" width="14" height="2" />
-                  <rect x="2" y="8" width="14" height="2" />
-                  <rect x="2" y="13" width="14" height="2" />
-                </svg>
-              </span>
-              Categorias
-            </button>
-            {categoriesOpen && (
-              <div className="site-header__categories-dropdown">
-                <div className="site-header__categories-dropdown-inner">
-                  {CATEGORIES.map((c) => (
-                    <Link
-                      key={c.slug}
-                      href={`/produtos?categoria=${encodeURIComponent(c.slug)}`}
-                      className="site-header__categories-dropdown-link"
-                      onClick={() => setCategoriesOpen(false)}
-                    >
-                      {c.label}
-                    </Link>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
         </div>
 
         <div className="site-header__search-wrap" ref={searchWrapRef}>
+          <div className="site-header__search-scope" role="group" aria-label="Pesquisar em">
+            <button
+              type="button"
+              className={`site-header__search-scope-btn${searchScope === 'products' ? ' site-header__search-scope-btn--active' : ''}`}
+              aria-pressed={searchScope === 'products'}
+              onClick={() => {
+                setSearchScope('products');
+                setSuggestOpen(false);
+              }}
+            >
+              Produtos
+            </button>
+            <button
+              type="button"
+              className={`site-header__search-scope-btn${searchScope === 'members' ? ' site-header__search-scope-btn--active' : ''}`}
+              aria-pressed={searchScope === 'members'}
+              onClick={() => {
+                setSearchScope('members');
+                setSuggestOpen(false);
+              }}
+            >
+              Membro
+            </button>
+          </div>
           <form className="site-header__search" onSubmit={handleSearch} role="search">
             <input
               type="search"
               className="site-header__search-input"
-              placeholder="Pesquise por nome ou descrição"
+              placeholder={
+                searchScope === 'members' ? 'Nome do membro' : 'Pesquise por nome ou descrição'
+              }
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onFocus={() => {
-                if (suggestions.length > 0) setSuggestOpen(true);
+                if (searchScope === 'products' && suggestions.length > 0) setSuggestOpen(true);
+                if (searchScope === 'members' && memberSuggestions.length > 0) setSuggestOpen(true);
               }}
               autoComplete="off"
               autoCorrect="off"
               spellCheck={false}
-              aria-label="Pesquisar produtos"
+              aria-label={searchScope === 'members' ? 'Pesquisar membros' : 'Pesquisar produtos'}
               aria-autocomplete="list"
               aria-expanded={suggestOpen}
             />
@@ -271,26 +284,58 @@ export default function Header() {
               </svg>
             </button>
           </form>
-          {suggestOpen && (suggestLoading || suggestions.length > 0) ? (
+          {suggestOpen &&
+          (suggestLoading ||
+            (searchScope === 'products' ? suggestions.length > 0 : memberSuggestions.length > 0)) ? (
             <ul className="site-header__search-suggest" role="listbox" aria-label="Sugestões">
-              {suggestLoading && suggestions.length === 0 ? (
+              {suggestLoading &&
+              (searchScope === 'products' ? suggestions.length === 0 : memberSuggestions.length === 0) ? (
                 <li className="site-header__search-suggest-item site-header__search-suggest-item--muted">
                   A procurar…
                 </li>
               ) : null}
-              {suggestions.map((p) => (
-                <li key={p.id} role="option">
-                  <Link
-                    href={`/produtos/${p.id}`}
-                    className="site-header__search-suggest-link"
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => setSuggestOpen(false)}
-                  >
-                    <span className="site-header__search-suggest-title">{p.title}</span>
-                    <span className="site-header__search-suggest-cat">{getCategoryLabel(p.category)}</span>
-                  </Link>
-                </li>
-              ))}
+              {searchScope === 'products'
+                ? suggestions.map((p) => (
+                    <li key={p.id} role="option">
+                      <Link
+                        href={`/produtos/${p.id}`}
+                        className="site-header__search-suggest-link"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => setSuggestOpen(false)}
+                      >
+                        <span className="site-header__search-suggest-title">{p.title}</span>
+                        <span className="site-header__search-suggest-cat">{getCategoryLabel(p.category)}</span>
+                      </Link>
+                    </li>
+                  ))
+                : memberSuggestions.map((m) => (
+                    <li key={m.id} role="option">
+                      <Link
+                        href={`/perfil/${m.id}`}
+                        className="site-header__search-suggest-link site-header__search-suggest-link--member"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => setSuggestOpen(false)}
+                      >
+                        {m.avatar_url ? (
+                          <img
+                            src={m.avatar_url}
+                            alt=""
+                            className="site-header__search-suggest-avatar"
+                            width={36}
+                            height={36}
+                          />
+                        ) : (
+                          <span className="site-header__search-suggest-avatar site-header__search-suggest-avatar--ph" aria-hidden>
+                            👤
+                          </span>
+                        )}
+                        <span className="site-header__search-suggest-title">
+                          {m.full_name?.trim() || 'Membro'}
+                        </span>
+                        <span className="site-header__search-suggest-cat">Perfil</span>
+                      </Link>
+                    </li>
+                  ))}
             </ul>
           ) : null}
         </div>
@@ -320,34 +365,41 @@ export default function Header() {
                     )}
                     <span className="site-header__user-name">{displayName}</span>
                   </button>
-                  {userMenuOpen && (
-                    <div className="site-header__user-dropdown">
-                      <span className="site-header__user-dropdown-role">
-                        {profile?.user_type === 'vendedor' ? 'Vendedor' : 'Utilizador'}
-                      </span>
-                      <Link href="/conta" className="site-header__user-dropdown-link" onClick={() => setUserMenuOpen(false)}>
-                        Minha conta
-                      </Link>
-                      <Link href="/perfil" className="site-header__user-dropdown-link" onClick={() => setUserMenuOpen(false)}>
-                        O meu perfil
-                      </Link>
-                      {profile?.user_type === 'vendedor' && (
-                        <Link href="/vendedor" className="site-header__user-dropdown-link" onClick={() => setUserMenuOpen(false)}>
-                          Área vendedor
-                        </Link>
-                      )}
-                      <button
-                        type="button"
-                        className="site-header__user-dropdown-link site-header__user-dropdown-logout"
-                        onClick={() => {
-                          signOut();
-                          setUserMenuOpen(false);
-                        }}
-                      >
-                        Sair
-                      </button>
-                    </div>
-                  )}
+                  <div className={`site-header__user-dropdown${userMenuOpen ? ' site-header__user-dropdown--open' : ''}`}>
+                    <Link href={user?.id ? `/perfil/${user.id}` : '/perfil'} className="site-header__user-dropdown-link" onClick={() => setUserMenuOpen(false)}>
+                      Perfil
+                    </Link>
+                    <Link
+                      href="/perfil#detalhes-perfil"
+                      className="site-header__user-dropdown-link"
+                      onClick={() => setUserMenuOpen(false)}
+                    >
+                      Definições
+                    </Link>
+                    <Link
+                      href="/perfil#personalizacao-categorias"
+                      className="site-header__user-dropdown-link"
+                      onClick={() => setUserMenuOpen(false)}
+                    >
+                      Personalização
+                    </Link>
+                    <Link href="/conta/saldo" className="site-header__user-dropdown-link" onClick={() => setUserMenuOpen(false)}>
+                      Saldo
+                    </Link>
+                    <Link href="/conta/compras" className="site-header__user-dropdown-link" onClick={() => setUserMenuOpen(false)}>
+                      Os meus pedidos
+                    </Link>
+                    <button
+                      type="button"
+                      className="site-header__user-dropdown-link"
+                      onClick={() => {
+                        signOut();
+                        setUserMenuOpen(false);
+                      }}
+                    >
+                      Terminar sessão
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <>
@@ -356,9 +408,6 @@ export default function Header() {
                   </Link>
                   <Link href="/entrar" className="site-header__signin">
                     Iniciar sessão
-                  </Link>
-                  <Link href="/entrar" className="site-header__icon" aria-label="Conta">
-                    <span className="site-header__avatar" />
                   </Link>
                 </>
               )}
@@ -393,13 +442,54 @@ export default function Header() {
         </div>
       </div>
 
-      <nav className="site-header__row site-header__row--sub">
-        {SECONDARY_LINKS.map((item) => (
-          <Link key={item.href + item.label} href={item.href} className="site-header__sub-link">
-            {item.icon && <span className="site-header__sub-icon">{item.icon}</span>}
-            {item.label}
-          </Link>
+      <nav
+        className="site-header__row site-header__row--sub site-header__nav-subcats"
+        aria-label="Categorias do marketplace"
+      >
+        {PHYSICAL_CATEGORY_GROUPS.map((g) => (
+          <div key={g.slug} className="site-header__nav-cat">
+            <Link
+              href={`/produtos?categoria=${encodeURIComponent(g.slug)}`}
+              className="site-header__nav-cat-trigger"
+            >
+              {g.label}
+            </Link>
+            <div className="site-header__nav-cat-panel" role="group" aria-label={`${g.label}: subcategorias`}>
+              <Link href={`/produtos?categoria=${encodeURIComponent(g.slug)}`} className="site-header__nav-cat-all">
+                Ver tudo em {g.label}
+              </Link>
+              {g.leaves.map((leaf) => (
+                <Link key={leaf.slug} href={`/produtos?categoria=${encodeURIComponent(leaf.slug)}`}>
+                  {leaf.label}
+                </Link>
+              ))}
+            </div>
+          </div>
         ))}
+        <div className="site-header__nav-cat">
+          <Link
+            href={`/produtos?categoria=${encodeURIComponent(CATEGORY_PRODUTO_DIGITAL)}`}
+            className="site-header__nav-cat-trigger"
+          >
+            Produto digital
+          </Link>
+          <div className="site-header__nav-cat-panel" role="group" aria-label="Produto digital: subcategorias">
+            <Link
+              href={`/produtos?categoria=${encodeURIComponent(CATEGORY_PRODUTO_DIGITAL)}`}
+              className="site-header__nav-cat-all"
+            >
+              Ver todos os digitais
+            </Link>
+            {DIGITAL_SUBCATEGORIES.map((d) => (
+              <Link
+                key={d.slug}
+                href={`/produtos?categoria=${encodeURIComponent(CATEGORY_PRODUTO_DIGITAL)}&subcategorias=${encodeURIComponent(d.slug)}`}
+              >
+                {d.label}
+              </Link>
+            ))}
+          </div>
+        </div>
       </nav>
     </header>
   );

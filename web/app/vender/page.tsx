@@ -21,9 +21,6 @@ function VenderContent() {
       router.replace(`/entrar?redirect=${encodeURIComponent(redirect)}`);
       return;
     }
-    if (profile && profile.user_type !== 'vendedor') {
-      // Não redirecionar; mostrar mensagem em baixo
-    }
   }, [user, profile, loading, router, redirect]);
 
   if (loading) {
@@ -40,29 +37,6 @@ function VenderContent() {
 
   if (!user) {
     return null;
-  }
-
-  if (profile && profile.user_type !== 'vendedor') {
-    return (
-      <div className="page">
-        <Header />
-        <main className="main">
-          <div className="auth-card auth-card--success">
-            <h1>Conta de vendedor necessária</h1>
-            <p>Para publicar anúncios e vender no TerraPlace precisa de uma conta de <strong>Vendedor</strong>. A sua conta atual é de utilizador comum (apenas compras).</p>
-            <p className="auth-subtitle">
-              <Link href="/vender/politica">Ver a política para vendedores (taxas)</Link> — informação pública antes de ativar a conta de vendedor.
-            </p>
-            <p>
-              <Link href="/produtos" className="btn btn-secondary">Ver produtos</Link>
-              {' '}
-              <Link href="/">Voltar ao início</Link>
-            </p>
-          </div>
-        </main>
-        <Footer />
-      </div>
-    );
   }
 
   return (

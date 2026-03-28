@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { Suspense, useEffect, useState, useMemo, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
-  CATEGORIES,
   CATEGORY_ENTRETERIMENTO,
   CATEGORY_PRODUTO_DIGITAL,
   DIGITAL_SUBCATEGORIES,
@@ -13,11 +12,14 @@ import {
   formatEntertainmentSubcategoriesList,
   getCategoryLabel,
   normalizeProductType,
+  PHYSICAL_CATEGORY_GROUPS,
   PRODUCT_TYPE_REUTILIZADOS,
 } from '@/lib/categories';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { StarRating } from '@/components/StarRating';
+import { buyerTotalFromBase } from '@/lib/seller-fees';
+import { recordProductSearchQuery } from '@/lib/browse-signals';
 
 interface Product {
   id: string;
@@ -84,6 +86,11 @@ function ProdutosContent() {
       }
     })();
   }, [apiParams]);
+
+  useEffect(() => {
+    const q = qParam.trim();
+    if (q.length >= 2) recordProductSearchQuery(q);
+  }, [qParam]);
 
   const writeUrl = useCallback(
     (next: { tipo: string; categoria: string; subcategorias: string[] }) => {
@@ -178,11 +185,19 @@ function ProdutosContent() {
             aria-label="Filtrar por categoria"
           >
             <option value="">Todas as categorias</option>
-            {CATEGORIES.map((c) => (
-              <option key={c.slug} value={c.slug}>
-                {c.label}
-              </option>
+            {PHYSICAL_CATEGORY_GROUPS.map((g) => (
+              <optgroup key={g.slug} label={g.label}>
+                <option value={g.slug}>Tudo em {g.label}</option>
+                {g.leaves.map((leaf) => (
+                  <option key={leaf.slug} value={leaf.slug}>
+                    {leaf.label}
+                  </option>
+                ))}
+              </optgroup>
             ))}
+            <optgroup label="Produto digital">
+              <option value={CATEGORY_PRODUTO_DIGITAL}>Produto digital</option>
+            </optgroup>
           </select>
         </div>
         {categoria === CATEGORY_PRODUTO_DIGITAL && (
@@ -201,8 +216,8 @@ function ProdutosContent() {
           </div>
         )}
         {categoria === CATEGORY_ENTRETERIMENTO && (
-          <div className="filters filters--digital-sub" role="group" aria-label="Subcategorias Entretenimento">
-            <span className="filters-label">Subcategorias:</span>
+          <div className="filters filters--digital-sub" role="group" aria-label="Subcategorias Entretenimento (legado)">
+            <span className="filters-label">Subcategorias (anúncios antigos):</span>
             {ENTERTAINMENT_SUBCATEGORIES.map((c) => (
               <label key={c.slug} className="filters-check">
                 <input
@@ -238,7 +253,7 @@ function ProdutosContent() {
                     <span className="product-card__stars-count">({p.review_count})</span>
                   </p>
                 ) : null}
-                <p className="product-price">{Number(p.price).toFixed(2)} €</p>
+                <p className="product-price">{buyerTotalFromBase(Number(p.price)).total.toFixed(2)} €</p>
                 <span className="product-type">{getCategoryLabel(p.category) || p.category || '—'}</span>
                 {p.category === CATEGORY_PRODUTO_DIGITAL && p.digital_subcategories?.length ? (
                   <span className="product-type product-type--digital-sub">

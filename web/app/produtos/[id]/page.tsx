@@ -11,6 +11,7 @@ import { supabase } from '@/lib/supabase';
 import {
   CATEGORY_ENTRETERIMENTO,
   CATEGORY_PRODUTO_DIGITAL,
+  buildProductBreadcrumbItems,
   formatProductTypeLabel,
   getCategoryLabel,
   getDigitalSubcategoryLabel,
@@ -21,6 +22,9 @@ import { StarRating } from '@/components/StarRating';
 import { SellerBlock, type SellerPublic } from '@/components/SellerBlock';
 import { ProductReviewsSection, type ProductReviewRow } from '@/components/ProductReviews';
 import { productTypeHasShipping } from '@/lib/product-shipping';
+import { buyerTotalFromBase } from '@/lib/seller-fees';
+import { ProductBreadcrumb } from '@/components/ProductBreadcrumb';
+import { recordProductView } from '@/lib/browse-signals';
 
 interface Product {
   id: string;
@@ -39,6 +43,7 @@ interface Product {
   review_count?: number | null;
   shipping_fee_eur?: number | null;
   ships_only_same_region?: boolean;
+  hidden?: boolean;
 }
 
 export default function ProductDetailPage() {
@@ -64,7 +69,11 @@ export default function ProductDetailPage() {
     if (!id) return;
     (async () => {
       try {
-        const res = await fetch(`/api/products/${id}`);
+        const { data: sessionData } = await supabase.auth.getSession();
+        const token = sessionData.session?.access_token;
+        const res = await fetch(`/api/products/${id}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
         const data = res.ok ? await res.json() : null;
         setProduct(data);
       } catch {
@@ -78,6 +87,15 @@ export default function ProductDetailPage() {
   useEffect(() => {
     setActiveImageIndex(0);
   }, [id]);
+
+  useEffect(() => {
+    if (!product || product.hidden) return;
+    recordProductView({
+      id: product.id,
+      title: product.title,
+      image_url: product.image_url,
+    });
+  }, [product]);
 
   useEffect(() => {
     if (!product) return;
@@ -140,14 +158,21 @@ export default function ProductDetailPage() {
   const showTypeChip =
     !(product.category === CATEGORY_PRODUTO_DIGITAL && product.type === 'digital');
   const favActive = listsReady && isFavorite(product.id);
+  const buyerPrice = buyerTotalFromBase(Number(product.price));
 
   return (
     <div className="page">
       <Header />
       <main className="main">
         <Link href="/produtos">← Voltar aos produtos</Link>
+        {product.hidden && user?.id === product.seller_id ? (
+          <p className="conta-order-card__note" style={{ marginTop: '0.75rem' }}>
+            Este anúncio está <strong>oculto</strong>: não aparece na loja nem nas pesquisas. Apenas tu o vês aqui.
+          </p>
+        ) : null}
         <div className="product-detail">
           <div className="product-detail-media">
+            <ProductBreadcrumb items={buildProductBreadcrumbItems(product)} />
             <div className="product-detail-image">
               {mainImage ? (
                 <img src={mainImage} alt={product.title} />
@@ -207,7 +232,22 @@ export default function ProductDetailPage() {
             ) : (
               <p className="product-detail-rating product-detail-rating--muted">Ainda sem avaliações neste anúncio</p>
             )}
-            <p className="product-price">{Number(product.price).toFixed(2)} €</p>
+            <div className="product-detail-price-row">
+              <p className="product-price">{buyerPrice.total.toFixed(2)} €</p>
+              <button
+                type="button"
+                className="btn btn-primary product-detail-buy-btn"
+                disabled={cartBusy}
+                onClick={async () => {
+                  setCartBusy(true);
+                  const r = await addToCart(product.id, 1);
+                  setCartBusy(false);
+                  if (r.ok) router.push('/carrinho');
+                }}
+              >
+                Comprar
+              </button>
+            </div>
             {productTypeHasShipping(product.type) && (
               <div className="product-shipping-block">
                 {product.shipping_fee_eur != null ? (
@@ -283,19 +323,6 @@ export default function ProductDetailPage() {
                 >
                   Adicionar ao carrinho
                 </button>
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  disabled={cartBusy}
-                  onClick={async () => {
-                    setCartBusy(true);
-                    const r = await addToCart(product.id, 1);
-                    setCartBusy(false);
-                    if (r.ok) router.push('/carrinho');
-                  }}
-                >
-                  Comprar
-                </button>
               </div>
             </div>
             {user ? (
@@ -335,7 +362,12 @@ export default function ProductDetailPage() {
                 .select('*')
                 .eq('product_id', id)
                 .order('created_at', { ascending: false }),
-              fetch(`/api/products/${id}`).then((r) => (r.ok ? r.json() : null)),
+              supabase.auth.getSession().then(({ data: s }) => {
+                const t = s.session?.access_token;
+                return fetch(`/api/products/${id}`, {
+                  headers: t ? { Authorization: `Bearer ${t}` } : {},
+                }).then((r) => (r.ok ? r.json() : null));
+              }),
               user
                 ? supabase.rpc('buyer_can_review_product', { p_product_id: id })
                 : Promise.resolve({ data: false }),

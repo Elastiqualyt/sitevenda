@@ -1,130 +1,119 @@
-# Marketplace
+# TerraPlace
 
-Plataforma para comprar e vender **artigos digitais**, **artesanato** e **itens reutilizados**.  
-Site em Next.js (web) e app em React Native (iOS/Android), com a mesma API.
+Marketplace para comprar e vender **artigos digitais**, **artesanato** e **produtos reutilizados**, com pagamento por **Stripe Checkout**, **Supabase** (PostgreSQL, Auth, Storage, Realtime) e site em **Next.js**. Existe também uma app **React Native** em `app/` que consome a mesma API.
+
+Operação comercial: serviço do grupo **Elastiquality** (ver `web/lib/site-brand.ts` e páginas legais no site).
 
 ---
 
 ## Onde está cada coisa
 
-| Parte        | Pasta      | Tecnologia        |
-|-------------|------------|-------------------|
-| Site + API  | `web/`     | Next.js (TypeScript) |
-| App móvel   | `app/`     | React Native      |
-| Base de dados + ficheiros | Supabase | Ver `ARCHITECTURE.md` |
-| Hosting site | Vercel    | Ver abaixo        |
+| Parte | Pasta | Tecnologia |
+|--------|--------|------------|
+| Site + API | `web/` | Next.js 14 (App Router, TypeScript) |
+| App móvel | `app/` | React Native |
+| Esquema e migrações | `supabase/` | PostgreSQL (Supabase) |
 
-Recomendações detalhadas de **hosting, storage e base de dados** estão em **[ARCHITECTURE.md](ARCHITECTURE.md)**.
+Documentação adicional:
 
-**Deploy passo a passo (Supabase CLI + Vercel + Stripe):** **[DEPLOY.md](DEPLOY.md)**.
-
----
-
-## Resumo da infraestrutura recomendada
-
-- **Site e API**: **Vercel** (deploy do projeto `web/`)
-- **Base de dados**: **Supabase** (PostgreSQL)
-- **Storage** (imagens e ficheiros digitais): **Supabase Storage**
-- **Autenticação**: **Supabase Auth** (quando implementares login)
-
-O app React Native usa a mesma API (URL do site na Vercel).
+- **[ARCHITECTURE.md](ARCHITECTURE.md)** — visão geral da arquitetura e dados.
+- **[DEPLOY.md](DEPLOY.md)** — deploy (Supabase CLI, Vercel, Stripe).
+- **`web/STRIPE.md`** — webhook Stripe e fluxo de pagamento.
+- **`web/.env.example`** — variáveis de ambiente da app web.
 
 ---
 
-## Como correr o projeto
+## Funcionalidades (resumo)
 
-### 1. Base de dados (Supabase)
+- Contas com **Supabase Auth** (registo, sessão, perfis em `profiles`).
+- **Produtos** com categorias, subcategorias (ex.: Produto Digital, Entretenimento), tipos físico/digital/reutilizados, carrinho e favoritos.
+- **Pagamentos** com Stripe Checkout; pedidos em `orders` / `order_items`; confirmação via webhook e fallback `/api/stripe/confirm-session`.
+- **Área Conta**: compras, pedidos (filtros em curso / concluídos / cancelados), cancelamento de pedidos **pendentes** (pagamento ainda não concluído) pela API `/api/orders/[id]/cancel`.
+- **Mensagens** entre comprador e vendedor (`conversations` / `messages`, Realtime).
+- **Vendedor**: produtos, importação CSV, área financeira/saldo (conforme migrações aplicadas).
+
+---
+
+## Como correr o projeto (desenvolvimento)
+
+### 1. Supabase
 
 1. Cria um projeto em [supabase.com](https://supabase.com).
-2. No **SQL Editor**, corre o ficheiro `supabase/schema.sql` para criar a tabela `products` e políticas RLS.
-3. Em **Storage**, cria dois buckets: `product-images` (público) e `digital-files` (privado).
-4. Em **Settings > API** copia a **Project URL** e a **anon public** key.
+2. Aplica as migrações em `supabase/migrations/` (recomendado: **Supabase CLI** `db push` com projeto ligado) ou, em alternativa, mantém `supabase/schema.sql` alinhado com as migrações.
+3. Em **Storage**, garante buckets **`product-images`** (público) e **`digital-files`** (privado), conforme políticas do projeto.
+4. Em **Settings → API**, copia **Project URL** e chave **anon**.
 
-### 2. Site (Next.js)
+### 2. Site Next.js (`web/`)
 
 ```bash
 cd web
 cp .env.example .env.local
 ```
 
-Edita `.env.local` e coloca:
+Edita **`.env.local`** (mínimo para desenvolvimento local):
 
-- `NEXT_PUBLIC_SUPABASE_URL` = URL do projeto Supabase  
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY` = chave anon do Supabase  
-
-Depois:
+| Variável | Uso |
+|----------|-----|
+| `NEXT_PUBLIC_SUPABASE_URL` | URL do projeto Supabase |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Chave anon (JWT) |
+| `NEXT_PUBLIC_APP_URL` | URL da app (ex. `http://localhost:3000`) — redirects Stripe |
+| `STRIPE_SECRET_KEY` | Necessária para criar sessões de checkout e cancelar/expirar sessões Stripe |
+| `STRIPE_WEBHOOK_SECRET` | Necessária em produção para validar o webhook `/api/stripe/webhook` |
+| `SUPABASE_SERVICE_ROLE_KEY` | Servidor apenas: webhook Stripe, algumas rotas API; **não** expor no cliente |
 
 ```bash
 npm install
 npm run dev
 ```
 
-Abre [http://localhost:3000](http://localhost:3000). A API está em `http://localhost:3000/api/products`.
+Abre [http://localhost:3000](http://localhost:3000). Rotas de API relevantes incluem `/api/products`, `/api/stripe/*`, etc.
 
-### 3. Deploy do site (Vercel)
+Para desenvolvimento após alterações que afetem cache do Next.js, o projeto define atalhos em `web/package.json` (ex. `npm run dev:reset` — limpa `.next` e reinicia). Ver regras do repositório em `.cursor/rules/`.
 
-1. Faz push do código para um repositório Git (GitHub/GitLab).
-2. Em [vercel.com](https://vercel.com), importa o repositório e escolhe a pasta **web** como root (ou configura o root no projeto).
-3. Nas variáveis de ambiente do projeto Vercel, adiciona `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
-4. Faz deploy. O site e a API ficam em `https://teu-projeto.vercel.app`.
+### 3. Deploy (Vercel)
 
-### 4. App React Native
+1. Root do projeto na Vercel: pasta **`web`** (ou equivalente).
+2. Define as mesmas variáveis de ambiente (produção) na Vercel, incluindo `STRIPE_*`, `SUPABASE_SERVICE_ROLE_KEY` e `NEXT_PUBLIC_APP_URL` com o domínio público.
+
+### 4. App React Native (`app/`)
 
 ```bash
 cd app
 npm install
 ```
 
-Para testar a API a partir do app, indica a URL do backend:
-
-- **Android emulador**: em `app/src/config/api.ts` usa por exemplo `http://10.0.2.2:3000` para o teu Next.js em `localhost:3000`.
-- **Produção**: usa a URL da Vercel, ex. `https://teu-projeto.vercel.app`.
-
-Podes usar variável de ambiente (ex. `EXPO_PUBLIC_API_URL` se usares Expo, ou um ficheiro de config) para alternar entre dev e prod.
-
-Depois:
+Configura a URL do backend (Next.js) em `app/src/config/` conforme o ambiente (emulador vs produção). Em Android, o emulador costuma usar um host especial para alcançar `localhost` no PC (ex. `10.0.2.2`).
 
 ```bash
-npm run android   # ou
+npm run android
+# ou
 npm run ios
 ```
 
-(Requer Android Studio / Xcode e ambiente React Native configurado.)
-
 ---
 
-## Estrutura do projeto
+## Estrutura do repositório (simplificada)
 
 ```
 .
-├── ARCHITECTURE.md    # Onde alocar site, DB, storage
-├── README.md          # Este ficheiro
-├── web/               # Site + API (Next.js)
-│   ├── app/
-│   │   ├── api/products/   # API usada pelo site e pelo app
-│   │   ├── produtos/      # Páginas de listagem e detalhe
-│   │   ├── vender/
-│   │   ├── entrar/
-│   │   └── page.tsx       # Página inicial
-│   └── lib/               # Supabase client, tipos
-├── app/               # App React Native
-│   ├── App.tsx
+├── ARCHITECTURE.md
+├── DEPLOY.md
+├── README.md
+├── web/                      # Site Next.js + API Routes
+│   ├── app/                  # Páginas, layouts, route handlers (/api/...)
+│   ├── components/
+│   ├── lib/                  # Cliente Supabase, taxas, helpers
+│   └── public/
+├── app/                      # React Native
 │   └── src/
-│       ├── config/    # URL da API
-│       ├── screens/   # Home, Produtos, Detalhe
-│       ├── services/  # fetchProducts, fetchProduct
-│       └── types/
-└── supabase/
-    └── schema.sql     # Tabela products e RLS
+├── supabase/
+│   ├── migrations/           # Migrações SQL versionadas
+│   └── schema.sql            # Referência / snapshot (usar migrações como fonte de verdade)
 ```
 
 ---
 
-## Próximos passos
+## Documentação e apoio
 
-1. **Autenticação**: Supabase Auth para login/registo (web e app).
-2. **Formulário de venda**: página “Vender” para criar produtos e fazer upload de imagem/ficheiro para Supabase Storage.
-3. **Pagamentos**: integrar Stripe ou outro processador para compras.
-4. **Encomendas**: tabela `orders` e fluxo de compra (digital = link de download; físico = morada de envio).
-
-A API em `/api/products` já está preparada para ser usada pelo site e pelo app em React Native.
+- Fluxo de pagamentos e variáveis Stripe: **`web/STRIPE.md`**.
+- Questões de deploy: **`DEPLOY.md`**.

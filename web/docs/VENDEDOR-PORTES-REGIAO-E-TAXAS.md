@@ -23,11 +23,9 @@ Valores indicativos (ver também `/vender` e o formulário de anúncio):
 
 | Tipo | O que é | Valor indicado |
 |------|---------|----------------|
-| **Taxa de listagem** | Publicar ou renovar um anúncio | Cerca de **0,17 €** por listagem; válida **4 meses** ou até vender (o que ocorrer primeiro). |
-| **Comissão sobre a venda** | Sobre o valor pago pelo comprador | **6,5 %** sobre o **preço do artigo + portes** que definiste no anúncio (quando os portes entram no pagamento). |
+| **Taxa de checkout (comprador)** | Cobrada ao comprador no pagamento | **6 % + 0,50 €** sobre o valor do artigo (e portes quando aplicável). |
 
-- A **comissão de 6,5 %** é descontada **automaticamente** ao **creditar o teu saldo interno** após o pagamento Stripe confirmado (webhook). O movimento em **Finanças** mostra o valor **líquido** e, na referência, o bruto e a comissão.
-- A **taxa de listagem** (0,17 €) está descrita na política; a cobrança automática desta taxa pode ser um desenvolvimento futuro na plataforma.
+- O vendedor recebe no saldo o valor declarado no anúncio (e portes definidos), sem desconto desta taxa de checkout.
 
 ## 4. Onde editar
 

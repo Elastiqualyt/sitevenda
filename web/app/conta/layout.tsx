@@ -9,8 +9,8 @@ import { useAuth } from '@/lib/auth-context';
 
 const NAV = [
   { href: '/conta', label: 'Visão geral' },
-  { href: '/conta/saldo', label: 'Saldo', vendedorOnly: true },
-  { href: '/conta/compras', label: 'Compras' },
+  { href: '/conta/saldo', label: 'Saldo' },
+  { href: '/conta/compras', label: 'Os meus pedidos' },
   { href: '/conta/digitais', label: 'Ficheiros digitais' },
   { href: '/mensagens', label: 'Conversas (chat)' },
 ] as const;
@@ -20,9 +20,7 @@ export default function ContaLayout({ children }: { children: React.ReactNode })
   const router = useRouter();
   const { user, profile, loading } = useAuth();
 
-  const navItems = NAV.filter(
-    (item) => !('vendedorOnly' in item && item.vendedorOnly) || profile?.user_type === 'vendedor',
-  );
+  const navItems = NAV;
 
   useEffect(() => {
     if (loading) return;
@@ -43,40 +41,45 @@ export default function ContaLayout({ children }: { children: React.ReactNode })
     );
   }
 
+  const isSaldoSection = pathname?.startsWith('/conta/saldo') ?? false;
+  const isPedidosSection = pathname?.startsWith('/conta/compras') ?? false;
+
   return (
     <div className="page">
       <Header />
-      <div className="vendedor-layout conta-layout">
-        <aside className="vendedor-sidebar">
-          <h2 className="vendedor-sidebar__title">Área da conta</h2>
-          <p className="conta-sidebar__hint">
-            {profile?.user_type === 'vendedor'
-              ? 'Compras, saldo e ficheiros digitais'
-              : 'Compras e ficheiros digitais'}
-          </p>
-          <nav className="vendedor-nav">
-            {navItems.map((item) => {
-              const active =
-                item.href === '/conta'
-                  ? pathname === '/conta'
-                  : pathname === item.href || pathname.startsWith(`${item.href}/`);
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`vendedor-nav__link ${active ? 'vendedor-nav__link--active' : ''}`}
-                >
-                  {item.label}
-                </Link>
-              );
-            })}
-          </nav>
-          <Link href="/perfil" className="conta-sidebar__perfil">
-            Editar perfil e dados
-          </Link>
-        </aside>
-        <main className="vendedor-main">{children}</main>
-      </div>
+      {isSaldoSection ? (
+        <div className="conta-saldo-bleed">{children}</div>
+      ) : isPedidosSection ? (
+        <div className="conta-pedidos-bleed">{children}</div>
+      ) : (
+        <div className="vendedor-layout conta-layout">
+          <aside className="vendedor-sidebar">
+            <h2 className="vendedor-sidebar__title">Área da conta</h2>
+            <p className="conta-sidebar__hint">Compras, saldo e ficheiros digitais</p>
+            <nav className="vendedor-nav">
+              {navItems.map((item) => {
+                const active =
+                  item.href === '/conta'
+                    ? pathname === '/conta'
+                    : pathname === item.href || pathname.startsWith(`${item.href}/`);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`vendedor-nav__link ${active ? 'vendedor-nav__link--active' : ''}`}
+                  >
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </nav>
+            <Link href="/perfil" className="conta-sidebar__perfil">
+              Editar perfil e dados
+            </Link>
+          </aside>
+          <main className="vendedor-main">{children}</main>
+        </div>
+      )}
       <Footer />
     </div>
   );

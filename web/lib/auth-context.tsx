@@ -3,18 +3,34 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from './supabase';
-import { parseUserType } from './user-type';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 
 export type UserType = 'vendedor' | 'comum';
 
 export type PaymentPreference = 'transferencia' | 'mbway';
 
+/** Preferências guardadas em profiles.notification_prefs (jsonb). */
+export type NotificationPrefs = {
+  email_enabled: boolean;
+  news_updates: boolean;
+  marketing: boolean;
+  messages: boolean;
+  reviews: boolean;
+  price_drops: boolean;
+  favorites: boolean;
+  new_items: boolean;
+  daily_limit: string;
+};
+
 export interface Profile {
   id: string;
   full_name: string | null;
   avatar_url?: string | null;
   user_type: UserType;
+  vacation_mode?: boolean | null;
+  gender?: string | null;
+  birth_date?: string | null;
+  notification_prefs?: NotificationPrefs | null;
   balance?: number;
   phone?: string | null;
   address?: string | null;
@@ -53,18 +69,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .eq('id', userId)
         .single();
 
-      /** Fonte de verdade: `profiles.user_type`. Metadados Auth não sobrepõem a BD. */
+      /** Conta única: todos os utilizadores podem comprar e vender. */
       if (data) {
-        const effectiveUserType: UserType =
-          parseUserType(data.user_type) === 'vendedor' ? 'vendedor' : 'comum';
+        const effectiveUserType: UserType = 'vendedor';
         setProfile({ ...(data as Profile), user_type: effectiveUserType });
         return;
       }
 
       if (error?.code === 'PGRST116' && sessionUserArg) {
-        const metaType = sessionUserArg?.user_metadata?.user_type;
-        const effectiveUserType: UserType =
-          parseUserType(metaType) === 'vendedor' ? 'vendedor' : 'comum';
+        const effectiveUserType: UserType = 'vendedor';
         setProfile({
           id: userId,
           full_name: (sessionUserArg.user_metadata?.full_name as string) ?? null,

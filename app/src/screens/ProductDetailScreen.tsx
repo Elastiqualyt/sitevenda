@@ -12,6 +12,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../../App';
 import { fetchProduct } from '../services/products';
 import type { Product } from '../types/product';
+import { buyerPriceFromSellerPrice } from '../lib/fees';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ProductDetail'>;
 
@@ -64,7 +65,7 @@ export default function ProductDetailScreen({ route }: Props) {
       <View style={styles.info}>
         <Text style={styles.type}>{productTypeLabel(product.type)}</Text>
         <Text style={styles.title}>{product.title}</Text>
-        <Text style={styles.price}>{Number(product.price).toFixed(2)} €</Text>
+        <Text style={styles.price}>{buyerPriceFromSellerPrice(Number(product.price)).toFixed(2)} €</Text>
         <Text style={styles.description}>
           {product.description || 'Sem descrição.'}
         </Text>

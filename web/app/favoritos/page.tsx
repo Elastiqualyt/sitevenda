@@ -12,6 +12,7 @@ import {
   getCategoryLabel,
 } from '@/lib/categories';
 import { useMarketplaceLists } from '@/lib/marketplace-lists-context';
+import { buyerTotalFromBase } from '@/lib/seller-fees';
 
 interface Product {
   id: string;
@@ -87,7 +88,7 @@ export default function FavoritosPage() {
                     )}
                   </div>
                   <h3>{p.title}</h3>
-                  <p className="product-price">{Number(p.price).toFixed(2)} €</p>
+                  <p className="product-price">{buyerTotalFromBase(Number(p.price)).total.toFixed(2)} €</p>
                   <span className="product-type">{getCategoryLabel(p.category) || p.category || '—'}</span>
                   {p.category === CATEGORY_PRODUTO_DIGITAL && p.digital_subcategories?.length ? (
                     <span className="product-type product-type--digital-sub">

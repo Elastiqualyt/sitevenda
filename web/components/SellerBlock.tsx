@@ -25,16 +25,18 @@ export function SellerBlock({
 
   return (
     <div className="seller-block">
-      <div className="seller-block__avatar" aria-hidden>
+      <Link href={`/perfil/${sellerId}`} className="seller-block__avatar" aria-label={`Ver perfil público de ${name}`}>
         {seller?.avatar_url ? (
-          <img src={seller.avatar_url} alt="" />
+          <img src={seller.avatar_url} alt={`Foto de ${name}`} />
         ) : (
           <span className="seller-block__avatar-placeholder">{name.slice(0, 1).toUpperCase()}</span>
         )}
-      </div>
+      </Link>
       <div className="seller-block__body">
         <p className="seller-block__label">Vendedor</p>
-        <p className="seller-block__name">{name}</p>
+        <p className="seller-block__name">
+          <Link href={`/perfil/${sellerId}`}>{name}</Link>
+        </p>
         {hasStats ? (
           <p className="seller-block__rating">
             <StarRating value={avgRating} size="sm" />

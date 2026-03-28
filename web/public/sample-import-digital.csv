@@ -1,2 +1,8 @@
-title,price,file_url,description,category,digital_subcategories,image_url
-"Exemplo — substitui o link",1.99,"https://drive.google.com/file/d/COLOCA_AQUI_O_ID/view","Descrição opcional",produto-digital,educacao-e-formacao,
+title,price,file_url,description,category,digital_subcategories,image_url_1,image_url_2,image_url_3,image_url_4,image_url_5
+"Exemplo — Educação e Formação",1.99,"https://drive.google.com/file/d/COLOCA_AQUI_O_ID/view","Substitui o link do PDF e o URL da imagem. Slug: educacao-e-formacao",produto-digital,educacao-e-formacao,"https://exemplo.tld/capa.jpg",,,,
+"Exemplo — Design e Criatividade",1.99,"https://drive.google.com/file/d/COLOCA_AQUI_O_ID/view","Substitui o link do PDF e o URL da imagem. Slug: design-e-criatividade",produto-digital,design-e-criatividade,"https://exemplo.tld/capa.jpg",,,,
+"Exemplo — Software e Tecnologia",1.99,"https://drive.google.com/file/d/COLOCA_AQUI_O_ID/view","Substitui o link do PDF e o URL da imagem. Slug: software-e-tecnologia",produto-digital,software-e-tecnologia,"https://exemplo.tld/capa.jpg",,,,
+"Exemplo — Áudio e Música",1.99,"https://drive.google.com/file/d/COLOCA_AQUI_O_ID/view","Substitui o link do PDF e o URL da imagem. Slug: audio-e-musica",produto-digital,audio-e-musica,"https://exemplo.tld/capa.jpg",,,,
+"Exemplo — Fotografia e Vídeo",1.99,"https://drive.google.com/file/d/COLOCA_AQUI_O_ID/view","Substitui o link do PDF e o URL da imagem. Slug: fotografia-e-video",produto-digital,fotografia-e-video,"https://exemplo.tld/capa.jpg",,,,
+"Exemplo — Conteúdo e Entretenimento",1.99,"https://drive.google.com/file/d/COLOCA_AQUI_O_ID/view","Substitui o link do PDF e o URL da imagem. Slug: conteudo-e-entretenimento",produto-digital,conteudo-e-entretenimento,"https://exemplo.tld/capa.jpg",,,,
+"Exemplo — Planeamento e Negócios",1.99,"https://drive.google.com/file/d/COLOCA_AQUI_O_ID/view","Substitui o link do PDF e o URL da imagem. Slug: planeamento-e-negocios",produto-digital,planeamento-e-negocios,"https://exemplo.tld/capa.jpg",,,,

@@ -22,8 +22,10 @@ Em **Developers → API keys**:
 2. **URL:** `https://<teu-dominio>/api/stripe/webhook`  
    Localmente: usa [Stripe CLI](https://stripe.com/docs/stripe-cli):  
    `stripe listen --forward-to localhost:3000/api/stripe/webhook`
-3. Evento: **`checkout.session.completed`**
-4. Copia o **Signing secret** → `STRIPE_WEBHOOK_SECRET`
+3. Eventos (recomendado):
+   - **`checkout.session.completed`** — obrigatório; é o que confirma o Checkout e fecha o pedido.
+   - **`payment_intent.succeeded`** — opcional mas recomendado como **rede de segurança** (o código trata os dois; o mesmo pedido só é processado uma vez).
+4. Copia o **Signing secret** deste endpoint → `STRIPE_WEBHOOK_SECRET` na Vercel (**modo Live** com chaves live).
 
 ## 4. Supabase (service role)
 
@@ -56,13 +58,15 @@ npx supabase db push
 3. Após pagamento, a Stripe chama `POST /api/stripe/webhook`.
 4. O webhook marca o pedido como pago, credita vendedores, reduz stock (produtos não digitais) e limpa o carrinho do comprador.
 
+**Se o webhook falhar** (URL errada, segredo live/test trocado, ou pequena diferença de cêntimos), o pedido fica `pending` e **não aparece** em «Histórico de compras» nem em «Ficheiros digitais». A página `/carrinho/sucesso` chama `POST /api/stripe/confirm-session` com o `session_id` para repetir a mesma lógica do webhook (fallback). Confirma no Stripe Dashboard → Webhooks que o endpoint `https://<domínio>/api/stripe/webhook` está ativo em **modo live** com o evento `checkout.session.completed`.
+
 ## 8. Testes
 
 - Cartão de teste: `4242 4242 4242 4242`, qualquer data futura, CVC qualquer.
 - Confirma no Dashboard Stripe (pagamentos) e no Supabase (`orders`, `profiles.balance`).
 
-## Política de taxas (vendedores)
+## Política de taxas (vendedores e compradores)
 
-- **Listagem:** valor indicativo na UI (`SellerListingPolicy`); cobrança automática da taxa de listagem não está implementada no webhook.
-- **Comissão sobre vendas (6,5 %):** aplicada ao **creditar o vendedor** em `POST /api/stripe/webhook`: para cada linha de `order_items`, o saldo aumenta pelo **líquido** `line_total × (1 − 0,065)`, com `balance_transactions` a registar bruto, comissão e líquido na referência. Constante: `SELLER_TRANSACTION_FEE_PERCENT` em `web/lib/seller-fees.ts` (`sellerLineNetAndCommission`).
-- **Portes:** para produtos físicos/reutilizados, se o vendedor definir `shipping_fee_eur` &gt; 0, o Checkout pode incluir uma **linha extra «Portes»** por artigo; `order_items.line_total` inclui **subtotal do produto + portes** dessa linha. A comissão **6,5 %** incide sobre esse `line_total` (ver `web/lib/product-shipping.ts`). Guia para vendedores: `web/docs/VENDEDOR-PORTES-REGIAO-E-TAXAS.md` e `/vendedor/guia`.
+- **Taxa de checkout (comprador):** **6% + 0,50 €** por linha de pedido, adicionada no checkout Stripe. Funções: `buyerTransactionFee` / `buyerTotalFromBase` em `web/lib/seller-fees.ts`.
+- **Crédito do vendedor:** em `POST /api/stripe/webhook`, o vendedor recebe o valor declarado no anúncio (`order_items.line_total`, incluindo portes definidos), sem desconto desta taxa de checkout. `balance_transactions` regista o crédito em `type = 'sale'`.
+- **Portes:** para produtos físicos/reutilizados, se o vendedor definir `shipping_fee_eur` &gt; 0, o Checkout inclui uma **linha extra «Portes»** por artigo; esse valor entra no crédito do vendedor nessa linha.
